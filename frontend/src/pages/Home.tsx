@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Container,
     Grid,
@@ -39,6 +39,15 @@ const Home = () => {
     const [loading, setLoading] = useState(true);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+    const productsRef = useRef<HTMLDivElement>(null);
+
+    const handleCategoryClick = (category: string) => {
+        setSelectedCategory(category);
+        // Smooth scroll to products section
+        setTimeout(() => {
+            productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    };
 
     useEffect(() => {
         incrementVisitorCount();
@@ -238,7 +247,7 @@ const Home = () => {
                     >
                         <Grid item xs={3} sm={2} md={1.5}>
                             <Card
-                                onClick={() => setSelectedCategory('all')}
+                                onClick={() => handleCategoryClick('all')}
                                 sx={{
                                     cursor: 'pointer',
                                     height: '100%',
@@ -290,7 +299,7 @@ const Home = () => {
                         {categories.map((category) => (
                             <Grid item xs={3} sm={2} md={1.5} key={category.id}>
                                 <Card
-                                    onClick={() => setSelectedCategory(category.id)}
+                                    onClick={() => handleCategoryClick(category.id)}
                                     sx={{
                                         cursor: 'pointer',
                                         height: '100%',
@@ -339,7 +348,12 @@ const Home = () => {
                         borderWidth: 2
                     }} />
 
-                    <Grid container spacing={3}>
+                    <Grid
+                        container
+                        spacing={3}
+                        ref={productsRef}
+                        sx={{ mt: 4 }}
+                    >
                         {filteredProducts.map((product) => (
                             <Grid item xs={12} sm={6} md={4} lg={3} key={product.id}>
                                 <Card
