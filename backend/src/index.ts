@@ -11,7 +11,7 @@ import { supabase } from './config/supabaseClient';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = Number(process.env.PORT) || 3001;
 
 // Middleware
 app.use(cors());
