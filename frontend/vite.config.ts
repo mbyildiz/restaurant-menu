@@ -13,7 +13,7 @@ export default defineConfig({
     host: true
   },
   build: {
-    minify: 'terser',
+    minify: true,
     rollupOptions: {
       output: {
         manualChunks: {
