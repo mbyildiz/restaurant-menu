@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/index.js",
-    "build": "tsc",
+    "build": "npm install && tsc",
     "dev": "nodemon src/index.ts"
   },
   "keywords": [],
@@ -21,10 +21,9 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.4",
-    "react-toastify": "^11.0.2"
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "ts-node": "^10.9.2"
+    "nodemon": "^3.0.2"
   }
 }
