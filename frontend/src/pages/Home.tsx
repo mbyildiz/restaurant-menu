@@ -43,9 +43,18 @@ const Home = () => {
 
     const handleCategoryClick = (category: string) => {
         setSelectedCategory(category);
-        // Smooth scroll to products section
+        // Kategorilerin yarısı görünecek şekilde scroll
+        const categoryHeight = 100; // Kategori kartının yaklaşık yüksekliği
+        const offset = categoryHeight / 2;
         setTimeout(() => {
-            productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const element = productsRef.current;
+            if (element) {
+                const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+                window.scrollTo({
+                    top: elementPosition - offset,
+                    behavior: 'smooth'
+                });
+            }
         }, 100);
     };
 
@@ -240,7 +249,7 @@ const Home = () => {
                         container
                         spacing={{ xs: 1, sm: 2, md: 3 }}
                         sx={{
-                            mb: { xs: 3, sm: 4, md: 5 },
+                            mb: { xs: 1, sm: 2 },
                             width: '100%',
                             mx: 0
                         }}
@@ -342,17 +351,12 @@ const Home = () => {
                         ))}
                     </Grid>
 
-                    <Divider sx={{
-                        my: { xs: 3, sm: 4, md: 5 },
-                        borderColor: 'grey.300',
-                        borderWidth: 2
-                    }} />
+                    <Box ref={productsRef} />
 
                     <Grid
                         container
-                        spacing={3}
-                        ref={productsRef}
-                        sx={{ mt: 4 }}
+                        spacing={2}
+                        sx={{ mt: 1 }}
                     >
                         {filteredProducts.map((product) => (
                             <Grid item xs={12} sm={6} md={4} lg={3} key={product.id}>
@@ -361,12 +365,12 @@ const Home = () => {
                                         height: '100%',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        border: '1px solid black',
+                                        border: '1px solid #e0e0e0',
                                         borderRadius: 2,
                                         transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                                         '&:hover': {
                                             transform: 'translateY(-4px)',
-                                            boxShadow: 4,
+                                            boxShadow: 2,
                                         },
                                     }}
                                 >
@@ -411,8 +415,8 @@ const Home = () => {
                                             variant="h6"
                                             component="h2"
                                             sx={{
-                                                color: 'primary.main',
-                                                fontSize: '1.3rem',
+                                                color: '#2e7d32',
+                                                fontSize: '1.1rem',
                                                 fontWeight: 600,
                                                 mb: 1
                                             }}
@@ -422,16 +426,19 @@ const Home = () => {
                                         <Typography
                                             variant="body2"
                                             color="text.secondary"
-                                            sx={{ mb: 2 }}
+                                            sx={{
+                                                mb: 1,
+                                                color: '#666'
+                                            }}
                                         >
                                             {product.description}
                                         </Typography>
                                         <Typography
                                             variant="h6"
-                                            color="primary.dark"
                                             sx={{
                                                 fontWeight: 'bold',
-                                                mt: 'auto'
+                                                mt: 'auto',
+                                                color: '#2e7d32'
                                             }}
                                         >
                                             {product.price} ₺
