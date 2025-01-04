@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import * as cors from 'cors';
 import companyRoutes from './routes/companyRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import authRoutes from './routes/authRoutes';

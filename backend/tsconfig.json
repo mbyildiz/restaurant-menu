@@ -24,10 +24,8 @@
     "experimentalDecorators": true,
     "sourceMap": true,
     "declaration": true,
-    "types": [
-      "node",
-      "express",
-      "cors"
+    "typeRoots": [
+      "./node_modules/@types"
     ]
   },
   "include": [
