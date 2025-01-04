@@ -1,0 +1,248 @@
+-- Supabase Kurulum ve Yapılandırma Adımları --
+
+1. Supabase Proje Oluşturma:
+   a. https://supabase.com adresine gidin
+   b. Sign In yapın veya hesap oluşturun
+   c. "New Project" butonuna tıklayın
+   d. Proje adını girin (örn: "restorant-menu")
+   e. Database password belirleyin ve not alın
+   f. Region seçin (en yakın bölge)
+   g. "Create new project" butonuna tıklayın
+   h. Proje oluşturulurken bekleyin (1-2 dakika sürebilir)
+
+2. Proje Ayarları:
+   a. Sol menüden "Project Settings" > "API" sekmesine gidin
+   b. Project URL ve anon public key bilgilerini not alın
+   c. Bu bilgileri frontend/.env ve backend/.env dosyalarına ekleyin:
+      
+      # frontend/.env dosyası
+      VITE_SUPABASE_URL=your-project-url
+      VITE_SUPABASE_ANON_KEY=your-anon-key
+
+      # backend/.env dosyası
+      SUPABASE_URL=your-project-url
+      SUPABASE_KEY=your-service-role-key
+
+3. Storage Bucket Oluşturma:
+   a. Sol menüden "Storage" sekmesine gidin
+   b. "New Bucket" butonuna tıklayın
+   c. Bucket Details:
+      - Name: category-images
+      - Public bucket: Evet (işaretleyin)
+      - File size limit: 5MB
+   d. "Create bucket" butonuna tıklayın
+
+4. Veritabanı Tabloları ve Politikaları:
+-- Önce tüm bağımlı tabloları temizle
+DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.categories CASCADE;
+DROP TABLE IF EXISTS public.options CASCADE;
+DROP TABLE IF EXISTS public.admins CASCADE;
+
+-- Admins Tablosunu Oluştur
+CREATE TABLE public.admins (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Categories Tablosunu Oluştur
+CREATE TABLE public.categories (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL UNIQUE,
+    description text,
+    image text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Products Tablosunu Oluştur
+CREATE TABLE public.products (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL,
+    description text,
+    price decimal(10,2) NOT NULL,
+    category_id uuid REFERENCES public.categories(id) NOT NULL,
+    images text[] DEFAULT '{}'::text[],
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Options Tablosunu Oluştur
+CREATE TABLE public.options (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    product_id uuid REFERENCES public.products(id) NOT NULL,
+    name text NOT NULL,
+    price decimal(10,2) NOT NULL DEFAULT 0,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+5. RLS (Row Level Security) Politikaları:
+
+-- Admins için RLS
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.admins
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable insert for authenticated users"
+ON public.admins
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Categories için RLS
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.categories
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.categories
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- Products için RLS
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.products
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.products
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- Options için RLS
+ALTER TABLE public.options ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.options
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.options
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+6. Storage Bucket için RLS Politikaları:
+
+-- category-images bucket'ı için okuma politikası (herkes okuyabilir)
+CREATE POLICY "Enable read access for all users"
+ON storage.objects
+FOR SELECT
+USING (bucket_id = 'category-images');
+
+-- category-images bucket'ı için yazma politikası (sadece yöneticiler)
+CREATE POLICY "Enable write access for admins"
+ON storage.objects
+FOR INSERT
+WITH CHECK (
+    bucket_id = 'category-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- category-images bucket'ı için silme politikası (sadece yöneticiler)
+CREATE POLICY "Enable delete access for admins"
+ON storage.objects
+FOR DELETE
+USING (
+    bucket_id = 'category-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+7. Trigger'lar:
+
+-- Updated At Trigger Fonksiyonu
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Products için trigger
+CREATE TRIGGER update_products_updated_at
+    BEFORE UPDATE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Categories için trigger
+CREATE TRIGGER update_categories_updated_at
+    BEFORE UPDATE ON categories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Options için trigger
+CREATE TRIGGER update_options_updated_at
+    BEFORE UPDATE ON options
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+8. Yönetici Kullanıcı Oluşturma:
+   a. Sol menüden "Authentication" sekmesine gidin
+   b. "Users" tabına tıklayın
+   c. "Invite user" butonuna tıklayın
+   d. Yönetici e-posta adresini girin
+   e. Kullanıcı oluşturulduktan sonra, SQL editöründe aşağıdaki komutu çalıştırın:
+      
+      INSERT INTO public.admins (user_id)
+      VALUES ('OLUŞTURULAN-KULLANICI-ID');
+      
+      Not: OLUŞTURULAN-KULLANICI-ID yerine Authentication > Users bölümünden 
+      ilgili kullanıcının ID'sini kopyalayıp yapıştırın.
+
+9. Email Ayarları (Opsiyonel):
+   a. Project Settings > Auth > SMTP Settings
+   b. Email ayarlarını yapılandırın (kendi SMTP sunucunuzu kullanabilirsiniz)
+   c. Email şablonlarını özelleştirin
+
+10. Cors Ayarları:
+    a. Project Settings > API > CORS Settings
+    b. "Additional Allowed Origins" bölümüne frontend URL'nizi ekleyin
+    örn: http://localhost:5173
+
+11. Güvenlik Kontrolleri:
+    a. Tüm tabloların RLS politikalarını kontrol edin
+    b. Storage bucket'ın doğru yapılandırıldığını kontrol edin
+    c. Yönetici kullanıcısının doğru oluşturulduğunu kontrol edin
+
+12. Test:
+    a. Yönetici hesabıyla giriş yapın
+    b. Kategori ekleme/düzenleme/silme işlemlerini test edin
+    c. Ürün ekleme/düzenleme/silme işlemlerini test edin
+    d. Resim yükleme işlemlerini test edin 

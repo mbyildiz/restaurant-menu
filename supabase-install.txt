@@ -1,0 +1,204 @@
+-- Supabase Kurulum ve Yapılandırma Adımları --
+
+1. Önce tüm bağımlı tabloları temizle:
+DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.categories CASCADE;
+DROP TABLE IF EXISTS public.options CASCADE;
+
+2. Admins Tablosunu Oluşturma:
+CREATE TABLE public.admins (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+
+3. Row Level Security (RLS) Politikalarını Ayarlama:
+-- Mevcut politikaları temizle
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.admins;
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.admins;
+
+-- Yeni politikaları ekle
+CREATE POLICY "Enable read access for all users"
+ON public.admins
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable insert for authenticated users"
+ON public.admins
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- RLS'yi etkinleştir
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+
+4. Yönetici Kullanıcı Ekleme:
+-- Önce Supabase Authentication'dan bir kullanıcı oluşturun
+-- Sonra oluşturulan kullanıcının ID'sini alıp aşağıdaki sorguyu çalıştırın
+INSERT INTO public.admins (user_id)
+VALUES ('KULLANICI_ID');
+
+5. Categories Tablosunu Oluşturma:
+CREATE TABLE public.categories (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL UNIQUE,
+    description text,
+    image text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+6. Categories için RLS Politikaları:
+-- Okuma politikası (herkes okuyabilir)
+CREATE POLICY "Enable read access for all users"
+ON public.categories
+FOR SELECT
+USING (true);
+
+-- Yazma politikası (sadece yöneticiler)
+CREATE POLICY "Enable write access for admins"
+ON public.categories
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- RLS'yi etkinleştir
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+7. Products Tablosunu Oluşturma:
+CREATE TABLE public.products (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL,
+    description text,
+    price decimal(10,2) NOT NULL,
+    category_id uuid REFERENCES public.categories(id) NOT NULL,
+    images text[] DEFAULT '{}'::text[],
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+8. Products için RLS Politikaları:
+-- Okuma politikası (herkes okuyabilir)
+CREATE POLICY "Enable read access for all users"
+ON public.products
+FOR SELECT
+USING (true);
+
+-- Yazma politikası (sadece yöneticiler)
+CREATE POLICY "Enable write access for admins"
+ON public.products
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- RLS'yi etkinleştir
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+
+9. Options Tablosunu Oluşturma:
+CREATE TABLE public.options (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    product_id uuid REFERENCES public.products(id) NOT NULL,
+    name text NOT NULL,
+    price decimal(10,2) NOT NULL DEFAULT 0,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+10. Options için RLS Politikaları:
+-- Okuma politikası (herkes okuyabilir)
+CREATE POLICY "Enable read access for all users"
+ON public.options
+FOR SELECT
+USING (true);
+
+-- Yazma politikası (sadece yöneticiler)
+CREATE POLICY "Enable write access for admins"
+ON public.options
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- RLS'yi etkinleştir
+ALTER TABLE public.options ENABLE ROW LEVEL SECURITY;
+
+11. Updated At Trigger'ları Oluşturma:
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Products için trigger
+CREATE TRIGGER update_products_updated_at
+    BEFORE UPDATE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Categories için trigger
+CREATE TRIGGER update_categories_updated_at
+    BEFORE UPDATE ON categories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Options için trigger
+CREATE TRIGGER update_options_updated_at
+    BEFORE UPDATE ON options
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+12. Storage Bucket Oluşturma:
+-- Supabase Dashboard üzerinden aşağıdaki adımları takip edin:
+-- 1. Storage sekmesine gidin
+-- 2. "New Bucket" butonuna tıklayın
+-- 3. Bucket adı olarak "category-images" girin
+-- 4. "Public bucket" seçeneğini işaretleyin
+-- 5. "Create bucket" butonuna tıklayın
+
+13. Storage Bucket için RLS Politikaları:
+-- category-images bucket'ı için okuma politikası (herkes okuyabilir)
+CREATE POLICY "Enable read access for all users"
+ON storage.objects
+FOR SELECT
+USING (bucket_id = 'category-images');
+
+-- category-images bucket'ı için yazma politikası (sadece yöneticiler)
+CREATE POLICY "Enable write access for admins"
+ON storage.objects
+FOR INSERT
+WITH CHECK (
+    bucket_id = 'category-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- category-images bucket'ı için silme politikası (sadece yöneticiler)
+CREATE POLICY "Enable delete access for admins"
+ON storage.objects
+FOR DELETE
+USING (
+    bucket_id = 'category-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+); 
