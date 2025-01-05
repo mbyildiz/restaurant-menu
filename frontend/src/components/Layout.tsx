@@ -100,26 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Container maxWidth={false}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                         <Typography variant="body2" color="text.secondary">
-                            © 2025 Dijital Menü.
-                            <Link
-                                href="https://www.instagram.com/mehmet_bulent_yildiz/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                sx={{
-                                    color: 'text.primary',
-                                    textDecoration: 'none',
-                                    mx: 1,
-                                    px: 1,
-                                    fontWeight: 500,
-                                    '&:hover': {
-                                        color: '#E1306C',
-                                        textDecoration: 'underline'
-                                    }
-                                }}
-                            >
-                                Mehmet Bülent YILDIZ
-                            </Link>
-                            Tüm hakları saklıdır
+                            © 2025 Dijital Menü. Tüm hakları saklıdır
                         </Typography>
                         <Link
                             href="https://www.instagram.com/mehmet_bulent_yildiz/"
