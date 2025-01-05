@@ -14,17 +14,20 @@ import {
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { supabase } from '../config/supabaseClient';
+import QRCode from 'qrcode';
 
 interface CompanyInfoForm {
     company_name: string;
     company_address: string;
     phone_number: string;
+    website?: string;
     social_media: {
         facebook?: string;
         instagram?: string;
         twitter?: string;
     };
     logo_url?: string;
+    qr_code?: string;
 }
 
 const CompanyInfo = () => {
@@ -34,12 +37,14 @@ const CompanyInfo = () => {
     const [companyId, setCompanyId] = useState<string | null>(null);
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string>('');
+    const [companyInfo, setCompanyInfo] = useState<CompanyInfoForm | null>(null);
 
     const { register, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm<CompanyInfoForm>({
         defaultValues: {
             company_name: '',
             company_address: '',
             phone_number: '',
+            website: '',
             social_media: {
                 facebook: '',
                 instagram: '',
@@ -74,11 +79,14 @@ const CompanyInfo = () => {
             }
 
             if (data) {
+                console.log('Alınan firma bilgileri:', data);
                 setCompanyId(data.id);
+                setCompanyInfo(data);
                 reset({
                     company_name: data.company_name || '',
                     company_address: data.company_address || '',
                     phone_number: data.phone_number || '',
+                    website: data.website || '',
                     social_media: data.social_media || {
                         facebook: '',
                         instagram: '',
@@ -189,6 +197,16 @@ const CompanyInfo = () => {
         }
     };
 
+    const generateQRCode = async (websiteUrl: string): Promise<string> => {
+        try {
+            const qrDataUrl = await QRCode.toDataURL(websiteUrl);
+            return qrDataUrl;
+        } catch (error) {
+            console.error('QR kod oluşturma hatası:', error);
+            throw new Error('QR kod oluşturulurken hata oluştu');
+        }
+    };
+
     const onSubmit = async (data: CompanyInfoForm) => {
         if (!companyId) {
             setError('Firma ID bulunamadı');
@@ -201,6 +219,18 @@ const CompanyInfo = () => {
             setSuccess(null);
 
             let logoUrl = currentLogo;
+            let qrCodeUrl = null;
+
+            // Website adresi varsa QR kod oluştur
+            if (data.website) {
+                try {
+                    qrCodeUrl = await generateQRCode(data.website);
+                } catch (qrError) {
+                    console.error('QR kod oluşturma hatası:', qrError);
+                    setError('QR kod oluşturulurken hata oluştu');
+                    return;
+                }
+            }
 
             // Yeni logo yüklendiyse
             if (logoFile) {
@@ -247,15 +277,13 @@ const CompanyInfo = () => {
             const { error: updateError } = await supabase
                 .from('company_info')
                 .update({
-                    company_name: data.company_name.trim(),
-                    company_address: data.company_address.trim(),
-                    phone_number: data.phone_number.trim(),
-                    social_media: {
-                        facebook: data.social_media?.facebook?.trim() || '',
-                        instagram: data.social_media?.instagram?.trim() || '',
-                        twitter: data.social_media?.twitter?.trim() || ''
-                    },
-                    logo_url: logoUrl
+                    company_name: data.company_name,
+                    company_address: data.company_address,
+                    phone_number: data.phone_number,
+                    website: data.website,
+                    social_media: data.social_media,
+                    logo_url: logoUrl,
+                    qr_code: qrCodeUrl
                 })
                 .eq('id', companyId);
 
@@ -265,10 +293,9 @@ const CompanyInfo = () => {
             }
 
             setSuccess('Firma bilgileri başarıyla güncellendi');
-            await fetchCompanyInfo();
         } catch (error: any) {
-            console.error('İşlem hatası:', error);
-            setError(error.message || 'Firma bilgileri kaydedilirken bir hata oluştu');
+            console.error('Form gönderme hatası:', error);
+            setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');
         } finally {
             setLoading(false);
         }
@@ -354,6 +381,24 @@ const CompanyInfo = () => {
                                 {...register('phone_number', { required: 'Telefon numarası gereklidir' })}
                                 error={!!errors.phone_number}
                                 helperText={errors.phone_number?.message}
+                            />
+                        </Grid>
+
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth
+                                variant="outlined"
+                                label="Website Adresi"
+                                InputLabelProps={{
+                                    shrink: true,
+                                }}
+                                sx={{
+                                    '& .MuiInputLabel-root': {
+                                        background: '#fff',
+                                        padding: '0 8px',
+                                    }
+                                }}
+                                {...register('website')}
                             />
                         </Grid>
 
@@ -445,6 +490,38 @@ const CompanyInfo = () => {
                                 </Box>
                             </Box>
                         </Grid>
+
+                        {watch('website') && (
+                            <Grid item xs={12}>
+                                <Typography variant="h6" gutterBottom>
+                                    Website QR Kodu
+                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                                    <Box sx={{
+                                        border: '1px solid #ddd',
+                                        borderRadius: '8px',
+                                        padding: '10px',
+                                        backgroundColor: '#fff'
+                                    }}>
+                                        {companyInfo?.qr_code ? (
+                                            <img
+                                                src={companyInfo.qr_code}
+                                                alt="Website QR Code"
+                                                style={{
+                                                    width: '250px',
+                                                    height: '250px',
+                                                    display: 'block'
+                                                }}
+                                            />
+                                        ) : (
+                                            <Typography color="textSecondary">
+                                                QR kod yükleniyor...
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                </Box>
+                            </Grid>
+                        )}
 
                         <Grid item xs={12}>
                             <Button

@@ -5,6 +5,8 @@ export interface CompanyInfo {
     company_name: string;
     company_address: string;
     phone_number: string;
+    website?: string;
+    qr_code?: string;
     social_media?: {
         facebook?: string;
         instagram?: string;
@@ -72,7 +74,10 @@ export class CompanyInfoModel {
     async update(id: string, companyInfo: Partial<CompanyInfo>) {
         console.log('=== Güncelleme İşlemi Başlıyor ===');
         console.log('1. Gelen ID:', id);
-        console.log('2. Gelen veri:', JSON.stringify(companyInfo, null, 2));
+        console.log('2. Gelen veri:', {
+            ...companyInfo,
+            qr_code: companyInfo.qr_code ? 'QR Kod var (base64)' : 'QR Kod yok'
+        });
 
         const cleanId = id.trim();
 
@@ -82,33 +87,22 @@ export class CompanyInfoModel {
         }
 
         try {
-            // Mevcut kaydı al
-            const { data: existingData, error: fetchError } = await this.supabase
-                .from(this.tableName)
-                .select('*')
-                .eq('id', cleanId)
-                .single();
-
-            if (fetchError) {
-                throw new Error('Mevcut kayıt alınamadı');
-            }
-
-            if (!existingData) {
-                throw new Error('Güncellenecek kayıt bulunamadı');
-            }
-
             // Güncellenecek veriyi hazırla
             const updateData = {
-                ...existingData,
-                ...companyInfo,
+                company_name: companyInfo.company_name,
+                company_address: companyInfo.company_address,
+                phone_number: companyInfo.phone_number,
+                website: companyInfo.website,
+                social_media: companyInfo.social_media,
+                logo_url: companyInfo.logo_url,
+                qr_code: companyInfo.qr_code,
                 updated_at: new Date().toISOString()
             };
 
-            // ID'yi çıkar
-            delete updateData.id;
-            delete updateData.created_at;
-
-            console.log('3. Güncellenecek veri:', JSON.stringify(updateData, null, 2));
+            console.log('3. Güncellenecek veri:', {
+                ...updateData,
+                qr_code: updateData.qr_code ? 'QR Kod var (base64)' : 'QR Kod yok'
+            });
 
             const { data, error } = await this.supabase
                 .from(this.tableName)
@@ -126,7 +120,10 @@ export class CompanyInfoModel {
                 throw new Error('Güncelleme sonrası veri bulunamadı');
             }
 
-            console.log('5. Güncelleme başarılı:', JSON.stringify(data, null, 2));
+            console.log('5. Güncelleme başarılı:', {
+                ...data,
+                qr_code: data.qr_code ? 'QR Kod var (base64)' : 'QR Kod yok'
+            });
             return data;
         } catch (error: any) {
             console.error('6. Hata:', error);
