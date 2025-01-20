@@ -15,7 +15,9 @@ import {
     Box,
     CardMedia,
 } from '@mui/material';
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { supabase } from '../services/supabase';
+import { StrictModeDroppable } from '../components/StrictModeDroppable';
 
 interface Category {
     id: string;
@@ -204,6 +206,47 @@ const CategoryManagement = () => {
         }
     };
 
+    const handleDragEnd = async (result: DropResult) => {
+        if (!result.destination) return;
+
+        const sourceIndex = result.source.index;
+        const destinationIndex = result.destination.index;
+
+        // Eğer pozisyon değişmemişse işlem yapma
+        if (sourceIndex === destinationIndex) return;
+
+        const newCategories = Array.from(categories);
+        const [movedItem] = newCategories.splice(sourceIndex, 1);
+        newCategories.splice(destinationIndex, 0, movedItem);
+
+        // Önce UI'ı güncelle
+        setCategories(newCategories);
+
+        // Sonra veritabanını güncelle
+        try {
+            // Sadece etkilenen öğeleri güncelle
+            const startIdx = Math.min(sourceIndex, destinationIndex);
+            const endIdx = Math.max(sourceIndex, destinationIndex);
+
+            const updates = newCategories
+                .slice(startIdx, endIdx + 1)
+                .map((item, index) => ({
+                    id: item.id,
+                    order_number: startIdx + index + 1
+                }));
+
+            // Toplu güncelleme yap
+            const { error } = await supabase
+                .from('categories')
+                .upsert(updates, { onConflict: 'id' });
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Sıralama güncellenirken hata:', error);
+            fetchCategories();
+        }
+    };
+
     return (
         <Container>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 8 }}>
@@ -215,44 +258,91 @@ const CategoryManagement = () => {
                 </Button>
             </Box>
 
-            <Grid container spacing={4}>
-                {categories.map((category) => (
-                    <Grid item key={category.id} xs={12} sm={6} md={4}>
-                        <Card>
-                            {category.image && (
-                                <CardMedia
-                                    component="img"
-                                    height="200"
-                                    image={category.image}
-                                    alt={category.name}
-                                />
-                            )}
-                            <CardContent>
-                                <Typography gutterBottom variant="h6" component="div">
-                                    {category.name}
-                                </Typography>
-                                {category.description && (
-                                    <Typography variant="body2" color="text.secondary">
-                                        {category.description}
-                                    </Typography>
-                                )}
-                            </CardContent>
-                            <CardActions>
-                                <Button size="small" onClick={() => handleOpen(category)}>
-                                    Düzenle
-                                </Button>
-                                <Button
-                                    size="small"
-                                    color="error"
-                                    onClick={() => handleDelete(category.id)}
+            <DragDropContext onDragEnd={handleDragEnd}>
+                <StrictModeDroppable droppableId="droppable" direction="horizontal">
+                    {(provided) => (
+                        <Box
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                            sx={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 2,
+                                p: 2,
+                                minHeight: '100px'
+                            }}
+                        >
+                            {categories.map((category, index) => (
+                                <Draggable
+                                    key={category.id}
+                                    draggableId={category.id}
+                                    index={index}
                                 >
-                                    Sil
-                                </Button>
-                            </CardActions>
-                        </Card>
-                    </Grid>
-                ))}
-            </Grid>
+                                    {(provided, snapshot) => (
+                                        <Box
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            {...provided.dragHandleProps}
+                                            sx={{
+                                                width: {
+                                                    xs: '100%',
+                                                    sm: 'calc(50% - 16px)',
+                                                    md: 'calc(25% - 16px)'
+                                                },
+                                                ...provided.draggableProps.style
+                                            }}
+                                        >
+                                            <Card
+                                                elevation={snapshot.isDragging ? 6 : 1}
+                                                sx={{
+                                                    height: '100%',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    opacity: snapshot.isDragging ? 0.6 : 1,
+                                                    transform: snapshot.isDragging ? 'scale(1.02)' : 'scale(1)',
+                                                    transition: 'transform 0.2s, opacity 0.2s'
+                                                }}
+                                            >
+                                                {category.image && (
+                                                    <CardMedia
+                                                        component="img"
+                                                        height="200"
+                                                        image={category.image}
+                                                        alt={category.name}
+                                                    />
+                                                )}
+                                                <CardContent sx={{ flexGrow: 1 }}>
+                                                    <Typography gutterBottom variant="h6" component="div">
+                                                        {category.name}
+                                                    </Typography>
+                                                    {category.description && (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            {category.description}
+                                                        </Typography>
+                                                    )}
+                                                </CardContent>
+                                                <CardActions>
+                                                    <Button size="small" onClick={() => handleOpen(category)}>
+                                                        Düzenle
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        color="error"
+                                                        onClick={() => handleDelete(category.id)}
+                                                    >
+                                                        Sil
+                                                    </Button>
+                                                </CardActions>
+                                            </Card>
+                                        </Box>
+                                    )}
+                                </Draggable>
+                            ))}
+                            {provided.placeholder}
+                        </Box>
+                    )}
+                </StrictModeDroppable>
+            </DragDropContext>
 
             <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
                 <DialogTitle>

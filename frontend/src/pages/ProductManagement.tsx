@@ -18,9 +18,12 @@ import {
     MenuItem,
     Box,
     IconButton,
+    CardMedia,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import { supabase } from '../services/supabase';
+import { StrictModeDroppable } from '../components/StrictModeDroppable';
 
 interface Product {
     id: string;
@@ -98,7 +101,7 @@ const ProductManagement = () => {
 
             if (error) throw error;
 
-            const formattedData = data?.map(product => ({
+            const formattedData = data?.map((product: Product) => ({
                 ...product,
                 images: Array.isArray(product.images) ? product.images : []
             })) || [];
@@ -273,6 +276,47 @@ const ProductManagement = () => {
         }
     };
 
+    const handleDragEnd = async (result: DropResult) => {
+        if (!result.destination) return;
+
+        const sourceIndex = result.source.index;
+        const destinationIndex = result.destination.index;
+
+        // Eğer pozisyon değişmemişse işlem yapma
+        if (sourceIndex === destinationIndex) return;
+
+        const newProducts = Array.from(products);
+        const [movedItem] = newProducts.splice(sourceIndex, 1);
+        newProducts.splice(destinationIndex, 0, movedItem);
+
+        // Önce UI'ı güncelle
+        setProducts(newProducts);
+
+        // Sonra veritabanını güncelle
+        try {
+            // Sadece etkilenen öğeleri güncelle
+            const startIdx = Math.min(sourceIndex, destinationIndex);
+            const endIdx = Math.max(sourceIndex, destinationIndex);
+
+            const updates = newProducts
+                .slice(startIdx, endIdx + 1)
+                .map((item, index) => ({
+                    id: item.id,
+                    order_number: startIdx + index + 1
+                }));
+
+            // Toplu güncelleme yap
+            const { error } = await supabase
+                .from('products')
+                .upsert(updates, { onConflict: 'id' });
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Sıralama güncellenirken hata:', error);
+            fetchProducts();
+        }
+    };
+
     return (
         <Container>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, mt: 4 }}>
@@ -284,83 +328,96 @@ const ProductManagement = () => {
                 </Button>
             </Box>
 
-            <Grid container spacing={4}>
-                {products.map((product) => (
-                    <Grid item key={product.id} xs={12} sm={6} md={4}>
-                        <Card>
-                            {product.images && product.images.length > 0 ? (
-                                <Box sx={{ position: 'relative', paddingTop: '56.25%' }}>
-                                    <img
-                                        src={product.images[0]}
-                                        alt={product.name}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'cover'
-                                        }}
-                                    />
-                                </Box>
-                            ) : (
-                                <Box
-                                    sx={{
-                                        height: 0,
-                                        paddingTop: '56.25%',
-                                        bgcolor: 'grey.300',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
+            <DragDropContext onDragEnd={handleDragEnd}>
+                <StrictModeDroppable droppableId="droppable" direction="horizontal">
+                    {(provided) => (
+                        <Box
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                            sx={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 2,
+                                p: 2,
+                                minHeight: '100px'
+                            }}
+                        >
+                            {products.map((product, index) => (
+                                <Draggable
+                                    key={product.id}
+                                    draggableId={product.id}
+                                    index={index}
                                 >
-                                    <Typography variant="body2" color="text.secondary">
-                                        Resim Yok
-                                    </Typography>
-                                </Box>
-                            )}
-                            <CardContent>
-                                <Typography gutterBottom variant="h6" component="div">
-                                    {product.name}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    {product.description}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                    Kategori: {(product.categories as any)?.name || 'Belirtilmemiş'}
-                                </Typography>
-                                <Typography
-                                    variant="h6"
-                                    color="primary"
-                                    sx={{ mt: 2, fontWeight: 'bold' }}
-                                >
-                                    {product.price.toLocaleString('tr-TR', {
-                                        style: 'currency',
-                                        currency: 'TRY',
-                                    })}
-                                </Typography>
-                            </CardContent>
-                            <CardActions sx={{ justifyContent: 'flex-end' }}>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => handleOpen(product)}
-                                >
-                                    Düzenle
-                                </Button>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    color="error"
-                                    onClick={() => handleDelete(product.id)}
-                                >
-                                    Sil
-                                </Button>
-                            </CardActions>
-                        </Card>
-                    </Grid>
-                ))}
-            </Grid>
+                                    {(provided, snapshot) => (
+                                        <Box
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            {...provided.dragHandleProps}
+                                            sx={{
+                                                width: {
+                                                    xs: '100%',
+                                                    sm: 'calc(50% - 16px)',
+                                                    md: 'calc(33.333% - 16px)',
+                                                    lg: 'calc(16.666% - 16px)'
+                                                },
+                                                ...provided.draggableProps.style
+                                            }}
+                                        >
+                                            <Card
+                                                elevation={snapshot.isDragging ? 6 : 1}
+                                                sx={{
+                                                    height: '100%',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    opacity: snapshot.isDragging ? 0.6 : 1,
+                                                    transform: snapshot.isDragging ? 'scale(1.02)' : 'scale(1)',
+                                                    transition: 'transform 0.2s, opacity 0.2s'
+                                                }}
+                                            >
+                                                {product.images && product.images.length > 0 && (
+                                                    <CardMedia
+                                                        component="img"
+                                                        height="200"
+                                                        image={product.images[0]}
+                                                        alt={product.name}
+                                                    />
+                                                )}
+                                                <CardContent sx={{ flexGrow: 1 }}>
+                                                    <Typography gutterBottom variant="h6" component="div">
+                                                        {product.name}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {product.description}
+                                                    </Typography>
+                                                    <Typography variant="h6" color="primary">
+                                                        {product.price.toFixed(2)} TL
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        Kategori: {product.categories?.name}
+                                                    </Typography>
+                                                </CardContent>
+                                                <CardActions>
+                                                    <Button size="small" onClick={() => handleOpen(product)}>
+                                                        Düzenle
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        color="error"
+                                                        onClick={() => handleDelete(product.id)}
+                                                    >
+                                                        Sil
+                                                    </Button>
+                                                </CardActions>
+                                            </Card>
+                                        </Box>
+                                    )}
+                                </Draggable>
+                            ))}
+                            {provided.placeholder}
+                        </Box>
+                    )}
+                </StrictModeDroppable>
+            </DragDropContext>
 
             <Dialog
                 open={open}
