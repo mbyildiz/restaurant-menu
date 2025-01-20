@@ -14,10 +14,12 @@ import {
     TextField,
     Box,
     CardMedia,
+    InputAdornment,
 } from '@mui/material';
 import { DragDropContext, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd';
 import { supabase } from '../services/supabase';
 import { StrictModeDroppable } from '../components';
+import SearchIcon from '@mui/icons-material/Search';
 
 interface Category {
     id: string;
@@ -29,6 +31,8 @@ interface Category {
 
 const CategoryManagement = () => {
     const [categories, setCategories] = useState<Category[]>([]);
+    const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [open, setOpen] = useState(false);
     const [editCategory, setEditCategory] = useState<Category | null>(null);
     const [formData, setFormData] = useState({
@@ -41,6 +45,14 @@ const CategoryManagement = () => {
     useEffect(() => {
         fetchCategories();
     }, []);
+
+    useEffect(() => {
+        const filtered = categories.filter(category =>
+            category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (category.description?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+        );
+        setFilteredCategories(filtered);
+    }, [searchQuery, categories]);
 
     const fetchCategories = async () => {
         try {
@@ -250,13 +262,30 @@ const CategoryManagement = () => {
 
     return (
         <Container>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 8 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4 }}>
                 <Typography variant="h4" component="h1" sx={{ mt: 2 }}>
                     Kategori Yönetimi
                 </Typography>
                 <Button variant="contained" onClick={() => handleOpen()} sx={{ mt: 2 }}>
                     Yeni Kategori Ekle
                 </Button>
+            </Box>
+
+            <Box sx={{ mb: 4 }}>
+                <TextField
+                    fullWidth
+                    variant="outlined"
+                    placeholder="Kategori ara..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                    }}
+                />
             </Box>
 
             <DragDropContext onDragEnd={handleDragEnd}>
@@ -273,7 +302,7 @@ const CategoryManagement = () => {
                                 minHeight: '100px'
                             }}
                         >
-                            {categories.map((category, index) => (
+                            {filteredCategories.map((category, index) => (
                                 <Draggable
                                     key={category.id}
                                     draggableId={category.id}
