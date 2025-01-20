@@ -306,11 +306,14 @@ const ProductManagement = () => {
                 }));
 
             // Toplu güncelleme yap
-            const { error } = await supabase
-                .from('products')
-                .upsert(updates, { onConflict: 'id' });
+            for (const update of updates) {
+                const { error } = await supabase
+                    .from('products')
+                    .update({ order_number: update.order_number })
+                    .eq('id', update.id);
 
-            if (error) throw error;
+                if (error) throw error;
+            }
         } catch (error) {
             console.error('Sıralama güncellenirken hata:', error);
             fetchProducts();
