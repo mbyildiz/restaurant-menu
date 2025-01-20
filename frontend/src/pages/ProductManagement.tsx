@@ -55,6 +55,8 @@ const base64ToUint8Array = (base64String: string): Uint8Array => {
 
 const ProductManagement = () => {
     const [products, setProducts] = useState<Product[]>([]);
+    const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [open, setOpen] = useState(false);
     const [editProduct, setEditProduct] = useState<Product | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
@@ -71,6 +73,14 @@ const ProductManagement = () => {
         fetchProducts();
         fetchCategories();
     }, []);
+
+    useEffect(() => {
+        const filtered = products.filter(product =>
+            product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            product.description.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        setFilteredProducts(filtered);
+    }, [searchQuery, products]);
 
     const fetchCategories = async () => {
         try {
@@ -322,13 +332,29 @@ const ProductManagement = () => {
 
     return (
         <Container sx={{ mt: 4 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4" component="h1">
-                    Ürün Ekle
-                </Typography>
-                <Button variant="contained" color="primary" onClick={() => handleOpen()}>
-                    Yeni Ürün Ekle
-                </Button>
+            <Box sx={{ mb: 4, mt: 4 }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            fullWidth
+                            variant="outlined"
+                            label="Ürün Ara"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Ürün adı veya açıklaması ile arayın..."
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={() => handleOpen()}
+                            sx={{ float: 'right' }}
+                        >
+                            Yeni Ürün Ekle
+                        </Button>
+                    </Grid>
+                </Grid>
             </Box>
 
             <DragDropContext onDragEnd={handleDragEnd}>
@@ -344,7 +370,7 @@ const ProductManagement = () => {
                                 minHeight: '100px'
                             }}
                         >
-                            {products.map((product, index) => (
+                            {filteredProducts.map((product, index) => (
                                 <Draggable key={product.id} draggableId={product.id} index={index}>
                                     {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                                         <Box
