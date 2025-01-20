@@ -112,7 +112,7 @@ const Home = () => {
             const { data, error } = await supabase
                 .from('categories')
                 .select('*')
-                .order('name');
+                .order('order_number', { ascending: true });
 
             if (error) throw error;
 
@@ -152,7 +152,7 @@ const Home = () => {
                         name
                     )
                 `)
-                .order('created_at', { ascending: false });
+                .order('order_number', { ascending: true });
 
             if (error) throw error;
 

@@ -22,6 +22,7 @@ interface Category {
     name: string;
     description: string | null;
     image: string | null;
+    order_number: number;
 }
 
 const CategoryManagement = () => {
@@ -44,7 +45,7 @@ const CategoryManagement = () => {
             const { data, error } = await supabase
                 .from('categories')
                 .select('*')
-                .order('name');
+                .order('order_number', { ascending: true });
 
             if (error) throw error;
             setCategories(data || []);
@@ -101,7 +102,6 @@ const CategoryManagement = () => {
 
             // Eğer yeni bir resim yüklendiyse
             if (formData.imageFile) {
-                const base64Data = formData.imagePreview.split(',')[1];
                 const { data: uploadData, error: uploadError } = await supabase
                     .storage
                     .from('category-images')
@@ -124,17 +124,30 @@ const CategoryManagement = () => {
                         name: formData.name,
                         description: formData.description || null,
                         image: imageUrl,
+                        order_number: editCategory.order_number
                     })
                     .eq('id', editCategory.id);
 
                 if (error) throw error;
             } else {
+                // En yüksek order_number'ı bul
+                const { data: maxOrderData } = await supabase
+                    .from('categories')
+                    .select('order_number')
+                    .order('order_number', { ascending: false })
+                    .limit(1);
+
+                const nextOrderNumber = maxOrderData && maxOrderData.length > 0
+                    ? maxOrderData[0].order_number + 1
+                    : 1;
+
                 const { error } = await supabase
                     .from('categories')
                     .insert([{
                         name: formData.name,
                         description: formData.description || null,
                         image: imageUrl,
+                        order_number: nextOrderNumber
                     }]);
 
                 if (error) throw error;
@@ -268,6 +281,21 @@ const CategoryManagement = () => {
                             multiline
                             rows={3}
                         />
+                        {editCategory && (
+                            <TextField
+                                fullWidth
+                                type="number"
+                                label="Sıralama Numarası"
+                                value={editCategory.order_number}
+                                onChange={(e) => {
+                                    setEditCategory({
+                                        ...editCategory,
+                                        order_number: parseInt(e.target.value)
+                                    });
+                                }}
+                                margin="normal"
+                            />
+                        )}
                         <Box sx={{ mt: 2, mb: 2 }}>
                             <input
                                 accept="image/*"

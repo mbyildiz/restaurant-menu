@@ -28,7 +28,8 @@ interface Product {
     description: string;
     price: number;
     category_id: string;
-    images?: string[];
+    images: string[];
+    order_number: number;
     categories?: {
         id: string;
         name: string;
@@ -93,7 +94,7 @@ const ProductManagement = () => {
                         name
                     )
                 `)
-                .order('created_at', { ascending: false });
+                .order('order_number', { ascending: true });
 
             if (error) throw error;
 
@@ -187,13 +188,30 @@ const ProductManagement = () => {
             if (editProduct) {
                 const { error } = await supabase
                     .from('products')
-                    .update(productData)
+                    .update({
+                        ...productData,
+                        order_number: editProduct.order_number
+                    })
                     .eq('id', editProduct.id);
                 if (error) throw error;
             } else {
+                // En yüksek order_number'ı bul
+                const { data: maxOrderData } = await supabase
+                    .from('products')
+                    .select('order_number')
+                    .order('order_number', { ascending: false })
+                    .limit(1);
+
+                const nextOrderNumber = maxOrderData && maxOrderData.length > 0
+                    ? maxOrderData[0].order_number + 1
+                    : 1;
+
                 const { data, error } = await supabase
                     .from('products')
-                    .insert([productData])
+                    .insert([{
+                        ...productData,
+                        order_number: nextOrderNumber
+                    }])
                     .select();
                 if (error) throw error;
                 productId = data[0].id;
@@ -388,6 +406,21 @@ const ProductManagement = () => {
                             margin="normal"
                             required
                         />
+                        {editProduct && (
+                            <TextField
+                                fullWidth
+                                type="number"
+                                label="Sıralama Numarası"
+                                value={editProduct.order_number}
+                                onChange={(e) => {
+                                    setEditProduct({
+                                        ...editProduct,
+                                        order_number: parseInt(e.target.value)
+                                    });
+                                }}
+                                margin="normal"
+                            />
+                        )}
                         <FormControl fullWidth margin="normal" required>
                             <InputLabel>Kategori</InputLabel>
                             <Select
