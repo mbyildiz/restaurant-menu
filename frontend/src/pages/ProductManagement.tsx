@@ -289,8 +289,10 @@ const ProductManagement = () => {
     const handleDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
-        const sourceIndex = result.source.index;
-        const destinationIndex = result.destination.index;
+        const sourceRowIndex = parseInt(result.source.droppableId.split('-')[1]);
+        const destinationRowIndex = parseInt(result.destination.droppableId.split('-')[1]);
+        const sourceIndex = sourceRowIndex * 4 + result.source.index;
+        const destinationIndex = destinationRowIndex * 4 + result.destination.index;
 
         // Eğer pozisyon değişmemişse işlem yapma
         if (sourceIndex === destinationIndex) return;
@@ -302,30 +304,27 @@ const ProductManagement = () => {
         // Önce UI'ı güncelle
         setProducts(newProducts);
 
-        // Sonra veritabanını güncelle
         try {
-            // Sadece etkilenen öğeleri güncelle
-            const startIdx = Math.min(sourceIndex, destinationIndex);
-            const endIdx = Math.max(sourceIndex, destinationIndex);
+            // Sıralama numaralarını güncelle
+            const updates = newProducts.map((product, index) => ({
+                id: product.id,
+                name: product.name,
+                description: product.description,
+                price: product.price,
+                category_id: product.category_id,
+                images: product.images,
+                order_number: index + 1
+            }));
 
-            const updates = newProducts
-                .slice(startIdx, endIdx + 1)
-                .map((item, index) => ({
-                    id: item.id,
-                    order_number: startIdx + index + 1
-                }));
+            // Batch update için tüm güncellemeleri bir dizide topla
+            const { error } = await supabase
+                .from('products')
+                .upsert(updates);
 
-            // Toplu güncelleme yap
-            for (const update of updates) {
-                const { error } = await supabase
-                    .from('products')
-                    .update({ order_number: update.order_number })
-                    .eq('id', update.id);
-
-                if (error) throw error;
-            }
+            if (error) throw error;
         } catch (error) {
             console.error('Sıralama güncellenirken hata:', error);
+            // Hata durumunda orijinal listeyi geri yükle
             fetchProducts();
         }
     };
@@ -358,88 +357,118 @@ const ProductManagement = () => {
             </Box>
 
             <DragDropContext onDragEnd={handleDragEnd}>
-                <StrictModeDroppable droppableId="products" direction="horizontal">
-                    {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
-                        <Box
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            sx={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: 2,
-                                minHeight: '100px'
-                            }}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {Array.from({ length: Math.ceil(filteredProducts.length / 4) }).map((_, rowIndex) => (
+                        <StrictModeDroppable
+                            key={`row-${rowIndex}`}
+                            droppableId={`row-${rowIndex}`}
+                            direction="horizontal"
                         >
-                            {filteredProducts.map((product, index) => (
-                                <Draggable key={product.id} draggableId={product.id} index={index}>
-                                    {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                                        <Box
-                                            ref={provided.innerRef}
-                                            {...provided.draggableProps}
-                                            {...provided.dragHandleProps}
-                                            sx={{
-                                                width: {
-                                                    xs: 'calc(50% - 16px)', // Mobil: 2 ürün
-                                                    sm: 'calc(33.33% - 16px)', // Tablet: 3 ürün
-                                                    md: 'calc(20% - 16px)', // Masaüstü: 5 ürün
-                                                },
-                                                ...provided.draggableProps.style
-                                            }}
-                                        >
-                                            <Card
-                                                elevation={snapshot.isDragging ? 6 : 1}
-                                                sx={{
-                                                    height: '100%',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    opacity: snapshot.isDragging ? 0.6 : 1,
-                                                    transform: snapshot.isDragging ? 'scale(1.02)' : 'scale(1)',
-                                                    transition: 'transform 0.2s, opacity 0.2s'
-                                                }}
+                            {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
+                                <Box
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                    sx={{
+                                        display: 'grid',
+                                        gridTemplateColumns: {
+                                            xs: 'repeat(1, 1fr)',
+                                            sm: 'repeat(2, 1fr)',
+                                            md: 'repeat(3, 1fr)',
+                                            lg: 'repeat(4, 1fr)',
+                                        },
+                                        gap: 3,
+                                        minHeight: '100px',
+                                        padding: 2,
+                                        backgroundColor: snapshot.isDraggingOver ? 'action.hover' : 'transparent',
+                                        transition: 'background-color 0.2s ease'
+                                    }}
+                                >
+                                    {filteredProducts
+                                        .slice(rowIndex * 4, (rowIndex + 1) * 4)
+                                        .map((product, index) => (
+                                            <Draggable
+                                                key={product.id}
+                                                draggableId={product.id}
+                                                index={index}
                                             >
-                                                {product.images && product.images.length > 0 && (
-                                                    <CardMedia
-                                                        component="img"
-                                                        height="200"
-                                                        image={product.images[0]}
-                                                        alt={product.name}
-                                                    />
-                                                )}
-                                                <CardContent sx={{ flexGrow: 1 }}>
-                                                    <Typography gutterBottom variant="h6" component="div">
-                                                        {product.name}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        {product.description}
-                                                    </Typography>
-                                                    <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
-                                                        {product.price.toFixed(2)} TL
-                                                    </Typography>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Kategori: {product.categories?.name}
-                                                    </Typography>
-                                                </CardContent>
-                                                <CardActions>
-                                                    <Button size="small" onClick={() => handleOpen(product)}>
-                                                        Düzenle
-                                                    </Button>
-                                                    <Button
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => handleDelete(product.id)}
+                                                {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                                                    <Box
+                                                        ref={provided.innerRef}
+                                                        {...provided.draggableProps}
+                                                        {...provided.dragHandleProps}
+                                                        sx={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            ...provided.draggableProps.style
+                                                        }}
                                                     >
-                                                        Sil
-                                                    </Button>
-                                                </CardActions>
-                                            </Card>
-                                        </Box>
-                                    )}
-                                </Draggable>
-                            ))}
-                            {provided.placeholder}
-                        </Box>
-                    )}
-                </StrictModeDroppable>
+                                                        <Card
+                                                            elevation={snapshot.isDragging ? 6 : 1}
+                                                            sx={{
+                                                                height: '100%',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                opacity: snapshot.isDragging ? 0.6 : 1,
+                                                                transform: snapshot.isDragging ? 'scale(1.02)' : 'scale(1)',
+                                                                transition: 'transform 0.2s, opacity 0.2s',
+                                                                '& .MuiCardMedia-root': {
+                                                                    height: 250,
+                                                                    objectFit: 'cover'
+                                                                },
+                                                                '& .MuiCardContent-root': {
+                                                                    flexGrow: 1,
+                                                                    p: 2.5
+                                                                },
+                                                                '& .MuiCardActions-root': {
+                                                                    p: 2,
+                                                                    justifyContent: 'space-between'
+                                                                }
+                                                            }}
+                                                        >
+                                                            {product.images && product.images.length > 0 && (
+                                                                <CardMedia
+                                                                    component="img"
+                                                                    height="200"
+                                                                    image={product.images[0]}
+                                                                    alt={product.name}
+                                                                />
+                                                            )}
+                                                            <CardContent sx={{ flexGrow: 1 }}>
+                                                                <Typography gutterBottom variant="h6" component="div">
+                                                                    {product.name}
+                                                                </Typography>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {product.description}
+                                                                </Typography>
+                                                                <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
+                                                                    {product.price.toFixed(2)} TL
+                                                                </Typography>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    Kategori: {product.categories?.name}
+                                                                </Typography>
+                                                            </CardContent>
+                                                            <CardActions>
+                                                                <Button size="small" onClick={() => handleOpen(product)}>
+                                                                    Düzenle
+                                                                </Button>
+                                                                <Button
+                                                                    size="small"
+                                                                    color="error"
+                                                                    onClick={() => handleDelete(product.id)}
+                                                                >
+                                                                    Sil
+                                                                </Button>
+                                                            </CardActions>
+                                                        </Card>
+                                                    </Box>
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                </Box>
+                            )}
+                        </StrictModeDroppable>
+                    ))}
+                </Box>
             </DragDropContext>
 
             <Dialog
