@@ -232,6 +232,7 @@ const CategoryManagement = () => {
                 .slice(startIdx, endIdx + 1)
                 .map((item, index) => ({
                     id: item.id,
+                    name: item.name,
                     order_number: startIdx + index + 1
                 }));
 
