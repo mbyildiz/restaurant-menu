@@ -30,6 +30,7 @@ interface CompanyInfo {
         twitter?: string;
     };
     logo_url?: string;
+    maps?: string;
 }
 
 const Home = () => {
@@ -509,6 +510,47 @@ const Home = () => {
                         </Grid>
                     </Container>
                 </Box>
+            )}
+
+            {/* Konum Haritası */}
+            {companyInfo?.maps && (
+                <Container maxWidth="lg" sx={{ mt: 6, mb: 4 }}>
+                    <Typography
+                        variant="h4"
+                        component="h2"
+                        gutterBottom
+                        sx={{
+                            textAlign: 'center',
+                            fontWeight: 600,
+                            mb: 3
+                        }}
+                    >
+                        Bizi Ziyaret Edin
+                    </Typography>
+                    <Box sx={{ width: '100%', height: '400px', borderRadius: 2, overflow: 'hidden' }}>
+                        <iframe
+                            src={companyInfo.maps}
+                            width="100%"
+                            height="100%"
+                            style={{ border: 0 }}
+                            allowFullScreen
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                        />
+                    </Box>
+                    {companyInfo.company_address && (
+                        <Typography
+                            variant="body1"
+                            sx={{
+                                textAlign: 'center',
+                                mt: 2,
+                                color: 'text.secondary'
+                            }}
+                        >
+                            {companyInfo.company_address}
+                        </Typography>
+                    )}
+                </Container>
             )}
         </Box>
     );

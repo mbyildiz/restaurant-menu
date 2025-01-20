@@ -28,6 +28,7 @@ interface CompanyInfoForm {
     };
     logo_url?: string;
     qr_code?: string;
+    maps?: string;
 }
 
 const CompanyInfo = () => {
@@ -50,7 +51,8 @@ const CompanyInfo = () => {
                 instagram: '',
                 twitter: ''
             },
-            logo_url: ''
+            logo_url: '',
+            maps: ''
         }
     });
 
@@ -80,6 +82,7 @@ const CompanyInfo = () => {
 
             if (data) {
                 console.log('Alınan firma bilgileri:', data);
+                console.log('Maps değeri:', data.maps);
                 setCompanyId(data.id);
                 setCompanyInfo(data);
                 reset({
@@ -92,8 +95,10 @@ const CompanyInfo = () => {
                         instagram: '',
                         twitter: ''
                     },
-                    logo_url: data.logo_url || ''
+                    logo_url: data.logo_url || '',
+                    maps: data.maps || ''
                 });
+                console.log('Form reset sonrası maps değeri:', watch('maps'));
                 setLogoPreview(data.logo_url || '');
             } else {
                 // İlk kayıt oluştur
@@ -107,7 +112,8 @@ const CompanyInfo = () => {
                             facebook: '',
                             instagram: '',
                             twitter: ''
-                        }
+                        },
+                        maps: ''
                     }])
                     .select()
                     .single();
@@ -217,6 +223,7 @@ const CompanyInfo = () => {
             setLoading(true);
             setError(null);
             setSuccess(null);
+            console.log('Gönderilecek maps değeri:', data.maps);
 
             let logoUrl = currentLogo;
             let qrCodeUrl = null;
@@ -274,17 +281,22 @@ const CompanyInfo = () => {
             }
 
             // Firma bilgilerini güncelle
+            const updateData = {
+                company_name: data.company_name,
+                company_address: data.company_address,
+                phone_number: data.phone_number,
+                website: data.website,
+                social_media: data.social_media,
+                logo_url: logoUrl,
+                qr_code: qrCodeUrl,
+                maps: data.maps
+            };
+
+            console.log('Supabase\'e gönderilen veri:', updateData);
+
             const { error: updateError } = await supabase
                 .from('company_info')
-                .update({
-                    company_name: data.company_name,
-                    company_address: data.company_address,
-                    phone_number: data.phone_number,
-                    website: data.website,
-                    social_media: data.social_media,
-                    logo_url: logoUrl,
-                    qr_code: qrCodeUrl
-                })
+                .update(updateData)
                 .eq('id', companyId);
 
             if (updateError) {
@@ -292,6 +304,7 @@ const CompanyInfo = () => {
                 throw new Error('Firma bilgileri güncellenirken hata oluştu');
             }
 
+            console.log('Güncelleme başarılı');
             setSuccess('Firma bilgileri başarıyla güncellendi');
         } catch (error: any) {
             console.error('Form gönderme hatası:', error);
@@ -522,6 +535,49 @@ const CompanyInfo = () => {
                                 </Box>
                             </Grid>
                         )}
+
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth
+                                variant="outlined"
+                                label="Google Maps Embed URL"
+                                InputLabelProps={{
+                                    shrink: true,
+                                }}
+                                sx={{
+                                    '& .MuiInputLabel-root': {
+                                        background: '#fff',
+                                        padding: '0 8px',
+                                    }
+                                }}
+                                {...register('maps')}
+                                helperText="Google Maps Embed URL'ini buraya yapıştırın (iframe src değeri)"
+                            />
+                        </Grid>
+
+                        {/* Maps Önizleme */}
+                        {(() => {
+                            const mapsUrl = watch('maps');
+                            console.log('Render edilen maps değeri:', mapsUrl);
+                            return mapsUrl && (
+                                <Grid item xs={12}>
+                                    <Typography variant="h6" gutterBottom>
+                                        Konum Haritası
+                                    </Typography>
+                                    <Box sx={{ width: '100%', height: '400px', mt: 2 }}>
+                                        <iframe
+                                            src={mapsUrl}
+                                            width="100%"
+                                            height="100%"
+                                            style={{ border: 0 }}
+                                            allowFullScreen
+                                            loading="lazy"
+                                            referrerPolicy="no-referrer-when-downgrade"
+                                        />
+                                    </Box>
+                                </Grid>
+                            );
+                        })()}
 
                         <Grid item xs={12}>
                             <Button
