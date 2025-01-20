@@ -1,20 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Droppable, DroppableProps } from 'react-beautiful-dnd';
+import { Droppable, DroppableProps, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd';
 
-export const StrictModeDroppable = ({ children, ...props }: DroppableProps) => {
-    const [enabled, setEnabled] = useState(false);
+interface StrictModeDroppableProps extends Omit<DroppableProps, 'children'> {
+    children: (provided: DroppableProvided, snapshot: DroppableStateSnapshot) => React.ReactNode;
+}
+
+export const StrictModeDroppable = ({ children, ...props }: StrictModeDroppableProps) => {
+    const [isEnabled, setIsEnabled] = useState(false);
 
     useEffect(() => {
-        const animation = requestAnimationFrame(() => setEnabled(true));
-        return () => {
-            cancelAnimationFrame(animation);
-            setEnabled(false);
-        };
+        setIsEnabled(true);
+        return () => setIsEnabled(false);
     }, []);
 
-    if (!enabled) {
+    if (!isEnabled) {
         return null;
     }
 
-    return <Droppable {...props}>{children}</Droppable>;
+    return (
+        <Droppable {...props}>
+            {(provided, snapshot) => (
+                <div ref={provided.innerRef} {...provided.droppableProps}>
+                    {children(provided, snapshot)}
+                    {provided.placeholder}
+                </div>
+            )}
+        </Droppable>
+    );
 }; 

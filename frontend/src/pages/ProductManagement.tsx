@@ -21,9 +21,9 @@ import {
     CardMedia,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd';
 import { supabase } from '../services/supabase';
-import { StrictModeDroppable } from '../components/StrictModeDroppable';
+import { StrictModeDroppable } from '../components';
 
 interface Product {
     id: string;
@@ -321,47 +321,41 @@ const ProductManagement = () => {
     };
 
     return (
-        <Container>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, mt: 4 }}>
+        <Container sx={{ mt: 4 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                 <Typography variant="h4" component="h1">
-                    Ürün Yönetimi
+                    Ürün Ekle
                 </Typography>
-                <Button variant="contained" onClick={() => handleOpen()}>
+                <Button variant="contained" color="primary" onClick={() => handleOpen()}>
                     Yeni Ürün Ekle
                 </Button>
             </Box>
 
             <DragDropContext onDragEnd={handleDragEnd}>
-                <StrictModeDroppable droppableId="droppable" direction="horizontal">
-                    {(provided) => (
+                <StrictModeDroppable droppableId="products" direction="horizontal">
+                    {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
                         <Box
-                            {...provided.droppableProps}
                             ref={provided.innerRef}
+                            {...provided.droppableProps}
                             sx={{
                                 display: 'flex',
                                 flexWrap: 'wrap',
                                 gap: 2,
-                                p: 2,
                                 minHeight: '100px'
                             }}
                         >
                             {products.map((product, index) => (
-                                <Draggable
-                                    key={product.id}
-                                    draggableId={product.id}
-                                    index={index}
-                                >
-                                    {(provided, snapshot) => (
+                                <Draggable key={product.id} draggableId={product.id} index={index}>
+                                    {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                                         <Box
                                             ref={provided.innerRef}
                                             {...provided.draggableProps}
                                             {...provided.dragHandleProps}
                                             sx={{
                                                 width: {
-                                                    xs: '100%',
-                                                    sm: 'calc(50% - 16px)',
-                                                    md: 'calc(33.333% - 16px)',
-                                                    lg: 'calc(16.666% - 16px)'
+                                                    xs: 'calc(50% - 16px)', // Mobil: 2 ürün
+                                                    sm: 'calc(33.33% - 16px)', // Tablet: 3 ürün
+                                                    md: 'calc(20% - 16px)', // Masaüstü: 5 ürün
                                                 },
                                                 ...provided.draggableProps.style
                                             }}
@@ -392,7 +386,7 @@ const ProductManagement = () => {
                                                     <Typography variant="body2" color="text.secondary">
                                                         {product.description}
                                                     </Typography>
-                                                    <Typography variant="h6" color="primary">
+                                                    <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
                                                         {product.price.toFixed(2)} TL
                                                     </Typography>
                                                     <Typography variant="body2" color="text.secondary">

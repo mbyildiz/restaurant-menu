@@ -15,9 +15,9 @@ import {
     Box,
     CardMedia,
 } from '@mui/material';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd';
 import { supabase } from '../services/supabase';
-import { StrictModeDroppable } from '../components/StrictModeDroppable';
+import { StrictModeDroppable } from '../components';
 
 interface Category {
     id: string;
@@ -261,7 +261,7 @@ const CategoryManagement = () => {
 
             <DragDropContext onDragEnd={handleDragEnd}>
                 <StrictModeDroppable droppableId="droppable" direction="horizontal">
-                    {(provided) => (
+                    {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
                         <Box
                             {...provided.droppableProps}
                             ref={provided.innerRef}
