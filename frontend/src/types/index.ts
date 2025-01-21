@@ -73,6 +73,7 @@ export interface ApiService {
     company: {
         getInfo: () => Promise<ApiResponse<CompanyInfo>>;
         update: (data: Partial<CompanyInfo>) => Promise<ApiResponse<CompanyInfo>>;
+        uploadLogo: (file: File) => Promise<{ success: boolean; url: string }>;
     };
     categories: {
         getAll: () => Promise<ApiResponse<Category[]>>;

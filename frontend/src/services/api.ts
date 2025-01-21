@@ -124,6 +124,36 @@ export const company: ApiService['company'] = {
     update: async (data) => {
         const response = await api.put<ApiResponse<any>>('/company', data);
         return response.data;
+    },
+    uploadLogo: async (file: File) => {
+        try {
+            const timestamp = Date.now();
+            const fileName = `company-logo-${timestamp}${file.name.substring(file.name.lastIndexOf('.'))}`;
+
+            const { data, error } = await supabase.storage
+                .from('company-logos')
+                .upload(fileName, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (error) {
+                console.error('Logo yükleme hatası:', error);
+                throw error;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('company-logos')
+                .getPublicUrl(fileName);
+
+            return {
+                success: true,
+                url: publicUrl
+            };
+        } catch (error) {
+            console.error('Logo yükleme hatası:', error);
+            throw error;
+        }
     }
 };
 

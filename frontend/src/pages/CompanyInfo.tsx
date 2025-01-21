@@ -181,10 +181,7 @@ const CompanyInfo = () => {
 
             if (logoFile) {
                 try {
-                    const formData = new FormData();
-                    formData.append('file', logoFile);
-
-                    const uploadResponse = await company.uploadLogo(formData);
+                    const uploadResponse = await company.uploadLogo(logoFile);
                     logoUrl = uploadResponse.url;
                 } catch (error: any) {
                     if (error.response?.status === 401) {
