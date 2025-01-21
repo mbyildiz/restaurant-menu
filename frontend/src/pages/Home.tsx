@@ -57,7 +57,7 @@ const Home = () => {
         try {
             await visitors.increment();
         } catch (error) {
-            console.error('Ziyaretçi sayısı güncellenirken hata:', error);
+            // Hata durumunda sessizce devam et
         }
     };
 
@@ -66,7 +66,7 @@ const Home = () => {
             const data = await company.getInfo();
             setCompanyInfo(data);
         } catch (error) {
-            console.error('Firma bilgileri yüklenirken hata:', error);
+            // Hata durumunda sessizce devam et
         }
     };
 
@@ -81,7 +81,7 @@ const Home = () => {
                         new URL(category.image);
                         imageUrl = category.image;
                     } catch (e) {
-                        console.warn(`Geçersiz image URL'i:`, category.image);
+                        // Geçersiz URL durumunda sessizce devam et
                     }
                 }
 
@@ -93,7 +93,7 @@ const Home = () => {
 
             setCategories(formattedData);
         } catch (error) {
-            console.error('Kategoriler yüklenirken hata:', error);
+            // Hata durumunda sessizce devam et
         } finally {
             setCategoriesLoading(false);
         }

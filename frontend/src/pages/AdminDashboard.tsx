@@ -28,7 +28,7 @@ const AdminDashboard = () => {
                 setVisitorCount(data.count);
             }
         } catch (error) {
-            console.error('Ziyaretçi sayısı alınamadı:', error);
+            // Hata durumunda sessizce devam et
         }
     };
 

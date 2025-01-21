@@ -72,8 +72,6 @@ const CompanyInfo = () => {
             const data = await company.getInfo();
 
             if (data) {
-                console.log('Alınan firma bilgileri:', data);
-                console.log('Maps değeri:', data.maps);
                 setCompanyId(data.id);
                 setCompanyInfo(data);
                 reset({
@@ -89,12 +87,10 @@ const CompanyInfo = () => {
                     logo_url: data.logo_url || '',
                     maps: data.maps || ''
                 });
-                console.log('Form reset sonrası maps değeri:', watch('maps'));
                 setLogoPreview(data.logo_url || '');
                 setStoredLogo(data.logo_url || null);
             }
         } catch (error: any) {
-            console.error('Beklenmeyen hata:', error);
             setError('Firma bilgileri yüklenirken beklenmeyen bir hata oluştu');
         } finally {
             setLoading(false);
@@ -153,75 +149,37 @@ const CompanyInfo = () => {
             const qrDataUrl = await QRCode.toDataURL(websiteUrl);
             return qrDataUrl;
         } catch (error) {
-            console.error('QR kod oluşturma hatası:', error);
             throw new Error('QR kod oluşturulurken hata oluştu');
         }
     };
 
     const onSubmit = async (data: CompanyInfoForm) => {
-        if (!companyId) {
-            setError('Firma ID bulunamadı');
-            return;
-        }
-
         try {
             setLoading(true);
             setError(null);
             setSuccess(null);
-            console.log('Gönderilecek maps değeri:', data.maps);
 
-            let logoUrl = currentLogo;
-            let qrCodeUrl = data.qr_code || null;
+            let logoUrl = null;
+            let qrCodeUrl = null;
 
-            // Website adresi varsa QR kod oluştur
             if (data.website) {
                 try {
-                    // Sadece website değişmişse veya QR kod yoksa yeni QR kod oluştur
-                    if (!qrCodeUrl || data.website !== companyInfo?.website) {
-                        qrCodeUrl = await generateQRCode(data.website);
-                        console.log('Yeni QR kod oluşturuldu:', qrCodeUrl);
-                    }
-                } catch (qrError) {
-                    console.error('QR kod oluşturma hatası:', qrError);
-                    // QR kod hatası durumunda mevcut QR kodu koru
-                    console.log('Mevcut QR kod korunuyor');
+                    qrCodeUrl = await generateQRCode(data.website);
+                } catch (error: any) {
+                    setError('QR kod oluşturulurken bir hata oluştu');
+                    return;
                 }
-            } else {
-                // Website yoksa QR kodu null yap
-                qrCodeUrl = null;
             }
 
-            // Yeni logo yüklendiyse
             if (logoFile) {
                 try {
-                    const uploadResult = await upload.image(logoFile);
-                    console.log('Logo yükleme sonucu (ham veri):', JSON.stringify(uploadResult, null, 2));
-                    console.log('Logo yükleme sonucu data:', uploadResult.data);
-                    console.log('Logo yükleme sonucu success:', uploadResult.success);
+                    const formData = new FormData();
+                    formData.append('file', logoFile);
 
-                    if (!uploadResult.success || !uploadResult.data?.url) {
-                        throw new Error('Logo yükleme yanıtı alınamadı');
-                    }
-
-                    // Supabase'den gelen URL'yi kullan
-                    logoUrl = uploadResult.data.url;
-                    console.log('Supabase\'den gelen URL:', logoUrl);
-
-                    // Logo URL'sini state ve form'a kaydet
-                    setStoredLogo(logoUrl);
-                    setValue('logo_url', logoUrl);
-
-                } catch (uploadError: any) {
-                    console.error('Logo yükleme hatası:', uploadError);
-                    let errorMessage = 'Logo yüklenirken hata oluştu';
-
-                    if (uploadError.response?.status === 401) {
-                        errorMessage = 'Oturum süreniz dolmuş olabilir. Lütfen sayfayı yenileyip tekrar deneyin.';
-                    } else if (uploadError.message) {
-                        errorMessage = uploadError.message;
-                    }
-
-                    setError(errorMessage);
+                    const uploadResponse = await company.uploadLogo(formData);
+                    logoUrl = uploadResponse.url;
+                } catch (error: any) {
+                    setError('Logo yüklenirken bir hata oluştu');
                     return;
                 }
             }
@@ -239,23 +197,16 @@ const CompanyInfo = () => {
                 updated_at: new Date().toISOString()
             };
 
-            console.log('Güncellenecek logo URL:', logoUrl);
-            console.log('Stored logo URL:', storedLogo);
-            console.log('API\'ye gönderilen veri:', updateData);
-
             try {
                 const response = await company.update(updateData);
-                console.log('Güncelleme başarılı:', response);
                 setSuccess('Firma bilgileri başarıyla güncellendi');
 
                 // Sayfayı yenile
                 await fetchCompanyInfo();
             } catch (error: any) {
-                console.error('Form gönderme hatası:', error);
                 setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');
             }
         } catch (error: any) {
-            console.error('Form gönderme hatası:', error);
             setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');
         } finally {
             setLoading(false);
@@ -506,7 +457,6 @@ const CompanyInfo = () => {
                         {/* Maps Önizleme */}
                         {(() => {
                             const mapsUrl = watch('maps');
-                            console.log('Render edilen maps değeri:', mapsUrl);
                             return mapsUrl && (
                                 <Grid item xs={12}>
                                     <Typography variant="h6" gutterBottom>
