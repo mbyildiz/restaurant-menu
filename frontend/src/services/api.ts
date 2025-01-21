@@ -22,9 +22,12 @@ interface ApiErrorResponse {
 // Request interceptor
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        // Visitor endpoint'leri için token kontrolü yapma
+        if (!config.url?.startsWith('/visitors')) {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
         }
 
         // FormData gönderimi için Content-Type header'ını kaldır
@@ -45,8 +48,8 @@ api.interceptors.response.use(
         return response;
     },
     (error: AxiosError<ApiErrorResponse>) => {
-        if (error.response?.status === 401) {
-            // Token geçersiz veya süresi dolmuş
+        // Visitor endpoint'leri için 401 kontrolü yapma
+        if (error.response?.status === 401 && !error.config?.url?.startsWith('/visitors')) {
             localStorage.removeItem('token');
             window.location.href = '/login';
         }

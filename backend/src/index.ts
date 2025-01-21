@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
 import companyRoutes from './routes/companyRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import visitorRoutes from './routes/visitorRoutes';
 import { supabase } from './config/supabaseClient';
 
 dotenv.config();
@@ -30,6 +31,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/visitors', visitorRoutes);
 
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server is running on http://0.0.0.0:${port}`);

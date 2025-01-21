@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { supabase } from '../config/supabase';
+import { supabase, adminSupabase } from '../config/supabaseClient';
 
 export const getVisitorCount = async (req: Request, res: Response) => {
     try {
@@ -23,8 +23,8 @@ export const getVisitorCount = async (req: Request, res: Response) => {
 
 export const incrementVisitorCount = async (req: Request, res: Response) => {
     try {
-        // Mevcut sayıyı al ve güncelle
-        const { data: currentData, error: fetchError } = await supabase
+        // Mevcut sayıyı al ve güncelle (service_role ile)
+        const { data: currentData, error: fetchError } = await adminSupabase
             .from('visitors')
             .select('count')
             .eq('id', 1)
@@ -38,7 +38,7 @@ export const incrementVisitorCount = async (req: Request, res: Response) => {
         const currentCount = currentData?.count || 0;
         const newCount = currentCount + 1;
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await adminSupabase
             .from('visitors')
             .update({ count: newCount })
             .eq('id', 1);
