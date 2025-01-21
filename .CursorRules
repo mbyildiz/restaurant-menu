@@ -1,202 +1,106 @@
-# Supabase Resim Yükleme Kuralları
+# Restorant Menü Projesi Kuralları ve Standartları
 
-1. Resim Formatları:
-   - JPEG/JPG
-   - PNG
-   - GIF
-   - WebP
-   - AVIF
-   - HEIC/HEIF
+## Supabase Depolama Kuralları
 
-2. Dosya Boyutu:
-   - Maksimum 50MB
+### Bucket İsimlendirme Standartları
+- Kategori Resimleri: `category-images`
+- Ürün Resimleri: `product-images`
+- Banner Resimleri: `banner-images`
 
-3. FormData Yapısı:
-   ```javascript
-   const formData = new FormData();
-   formData.append('image', file); // Dosya adı 'image' olmalı
-   ```
+### Resim Yükleme Standartları
 
-4. Resim Yükleme Endpoint'i:
-   - Storage bucket'a yükleme yapılmalı
-   - Content-Type: multipart/form-data olmalı
+#### Kategori Resimleri
+- Maksimum boyut: 2MB
+- İzin verilen formatlar: .jpg, .jpeg, .png
+- Önerilen boyutlar: 800x600px
+- Dosya isimlendirme: `category-${categoryId}-${timestamp}.${extension}`
 
-5. Önemli Noktalar:
-   - Base64 formatında resim kabul edilmez
-   - Dosya doğrudan File/Blob objesi olarak gönderilmeli
-   - URL string olarak resim kabul edilmez
-   - FormData içinde dosya adı 'image' olmalı
-   - Dosya MIME type'ı image/* olmalı
+#### Ürün Resimleri (Çoklu)
+- Maksimum boyut (her resim için): 2MB
+- İzin verilen formatlar: .jpg, .jpeg, .png
+- Önerilen boyutlar: 1200x800px
+- Ana resim isimlendirme: `product-${productId}-main-${timestamp}.${extension}`
+- Diğer resimler: `product-${productId}-${index}-${timestamp}.${extension}`
+- Bir ürün için maksimum 5 resim
 
-6. Örnek Kullanım:
-   ```typescript
-   const formData = new FormData();
-   formData.append('image', file);
-   
-   // Doğru kullanım
-   if (file instanceof File) {
-     formData.append('image', file);
-   }
-   
-   // Yanlış kullanım
-   formData.append('image', base64String);
-   formData.append('image', imageUrl);
-   ```
+### Supabase Bucket Politikaları
 
-7. Hata Durumları:
-   - 0 byte dosya hatası: FormData yanlış oluşturulmuş
-   - 415 Unsupported Media Type: Desteklenmeyen dosya formatı
-   - 413 Payload Too Large: Dosya boyutu limiti aşılmış 
+Her bucket için aşağıdaki politikalar uygulanmalıdır:
 
-# Çoklu Resim Yükleme Kuralları ve Çözüm Yolları
-
-## 1. Frontend Tarafı
-
-### FormData Yerine JSON Kullanımı
-```typescript
-// Doğru Kullanım
-const productData = {
-    name: trimmedName,
-    description: trimmedDescription,
-    price: price,
-    category_id: formData.category_id,
-    images: imageUrls  // string[] olarak URL'ler
-};
-
-// Yanlış Kullanım
-const formData = new FormData();
-formData.append('images', imageFiles);
-```
-
-### API İsteklerinde Content-Type Ayarı
-```typescript
-const response = await api.put<ApiResponse<any>>(`/products/${id}`, data, {
-    headers: {
-        'Content-Type': 'application/json'
-    }
-});
-```
-
-### Resim Yükleme İşlemi
-```typescript
-// 1. Önce resimleri Supabase storage'a yükle
-const uploadResult = await upload.uploadMultipleFiles(formData.imageFiles);
-const imageUrls = uploadResult.data?.urls || [];
-
-// 2. Sonra ürün bilgileriyle birlikte URL'leri gönder
-const productData = {
-    ...otherData,
-    images: imageUrls
-};
-```
-
-## 2. Backend Tarafı
-
-### CORS Ayarları
-```typescript
-app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
-```
-
-### Request Body Parsing
-```typescript
-// JSON parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-```
-
-### Resim Array'i İşleme
-```typescript
-const { images } = req.body;
-let existingImages: string[] = [];
-
-try {
-    existingImages = Array.isArray(images) ? images : JSON.parse(images || '[]');
-} catch (error) {
-    console.error('Resimler parse edilirken hata:', error);
-}
-```
-
-## 3. Supabase Storage Kuralları
-
-### Bucket Ayarları
-1. `product-images` bucket'ı oluşturulmalı
-2. Public erişime açık olmalı
-3. Dosya boyutu limiti: 50MB
-4. İzin verilen dosya tipleri: image/*
-
-### Storage Politikaları
 ```sql
--- Okuma izni (herkes)
+-- Herkes görebilir
 CREATE POLICY "Herkes görebilir"
 ON storage.objects FOR SELECT
-USING (bucket_id = 'product-images');
+USING (bucket_id = 'bucket_name');
 
--- Yazma izni (sadece auth kullanıcılar)
+-- Sadece auth kullanıcılar yükleyebilir
 CREATE POLICY "Auth kullanıcılar yükleyebilir"
 ON storage.objects FOR INSERT
 WITH CHECK (
-    bucket_id = 'product-images' 
+    bucket_id = 'bucket_name' 
+    AND auth.role() = 'authenticated'
+);
+
+-- Güncelleme izni (sadece auth kullanıcılar)
+CREATE POLICY "Auth kullanıcı güncelleme izni" 
+ON storage.objects FOR UPDATE
+USING (
+    bucket_id = 'bucket_name' 
+    AND auth.role() = 'authenticated'
+);
+
+-- Silme izni (sadece auth kullanıcılar)
+CREATE POLICY "Auth kullanıcı silme izni" 
+ON storage.objects FOR DELETE 
+USING (
+    bucket_id = 'bucket_name' 
     AND auth.role() = 'authenticated'
 );
 ```
 
-## 4. Hata Kontrolü ve Validasyon
+## Kimlik Doğrulama ve Token Yönetimi
 
-### Frontend Validasyonu
-```typescript
-// Dosya boyutu kontrolü
-const totalSize = files.reduce((acc, file) => acc + file.size, 0);
-if (totalSize > 50 * 1024 * 1024) {
-    alert('Toplam resim boyutu 50MB\'ı geçemez');
-    return;
-}
+### Token Yönetimi
+- Access token'lar localStorage'da saklanır
+- Refresh token'lar secure cookie olarak saklanır
+- Token yenileme süresi: 7 gün
+- Access token süresi: 1 saat
 
-// Dosya tipi kontrolü
-const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-if (!allowedTypes.includes(file.type)) {
-    alert('Sadece resim dosyaları yüklenebilir');
-    return;
-}
-```
+### Güvenlik Önlemleri
+- Tüm API istekleri için JWT token zorunludur
+- Rate limiting: 100 istek/dakika
+- Başarısız login denemelerinde progressive delay uygulanır
+- Hassas veriler için additional encryption kullanılır
 
-### Backend Validasyonu
-```typescript
-// Resim array kontrolü
-if (!Array.isArray(images)) {
-    return res.status(400).json({
-        success: false,
-        error: 'Resimler array formatında olmalıdır'
-    });
-}
+## Sürükle-Bırak Fonksiyonalitesi
 
-// URL validasyonu
-const isValidUrl = (url: string) => {
-    try {
-        new URL(url);
-        return true;
-    } catch {
-        return false;
-    }
-};
+### Kategori Sıralaması
+- Her kategorinin `order` alanı vardır
+- Sıralama değişikliği real-time olarak kaydedilir
+- Optimistic UI update kullanılır
+- Batch update için debounce: 500ms
 
-if (!images.every(url => isValidUrl(url))) {
-    return res.status(400).json({
-        success: false,
-        error: 'Geçersiz resim URL\'i'
-    });
-}
-```
+### Ürün Sıralaması
+- Ürünler kategori içinde sıralanır
+- Her ürünün `categoryOrder` alanı vardır
+- Kategoriler arası taşıma desteklenir
+- Sıralama değişikliği real-time kaydedilir
 
-## 5. Önemli Noktalar
+## Genel Kurallar
 
-1. Frontend'de resim yükleme önce Supabase Storage'a yapılmalı
-2. Storage'dan alınan URL'ler ürün bilgileriyle birlikte API'ye gönderilmeli
-3. Backend'de images array'i her zaman string[] olarak işlenmeli
-4. CORS ayarları doğru yapılandırılmalı
-5. Content-Type header'ları doğru ayarlanmalı
-6. Hata durumları için uygun logging yapılmalı 
+### Kod Formatı
+- ESLint ve Prettier kullanımı zorunludur
+- TypeScript strict mode aktif
+- Commit mesajları conventional commits formatında
+
+### Performans
+- Resimler lazy loading ile yüklenir
+- Liste görünümlerinde virtualization kullanılır
+- API istekleri için caching implementasyonu
+- Büyük listeler için pagination zorunlu
+
+### Hata Yönetimi
+- Tüm API hataları merkezi error handler üzerinden yönetilir
+- Kullanıcı dostu hata mesajları gösterilir
+- Network hataları için retry mekanizması
+- Offline support için error boundary kullanımı
