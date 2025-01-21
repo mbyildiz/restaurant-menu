@@ -159,6 +159,14 @@ const CompanyInfo = () => {
             setError(null);
             setSuccess(null);
 
+            // Token kontrolü
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
+                window.location.href = '/login';
+                return;
+            }
+
             let logoUrl = null;
             let qrCodeUrl = null;
 
@@ -179,6 +187,11 @@ const CompanyInfo = () => {
                     const uploadResponse = await company.uploadLogo(formData);
                     logoUrl = uploadResponse.url;
                 } catch (error: any) {
+                    if (error.response?.status === 401) {
+                        setError('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
+                        window.location.href = '/login';
+                        return;
+                    }
                     setError('Logo yüklenirken bir hata oluştu');
                     return;
                 }
@@ -199,15 +212,21 @@ const CompanyInfo = () => {
 
             try {
                 const response = await company.update(updateData);
-                setSuccess('Firma bilgileri başarıyla güncellendi');
-
-                // Sayfayı yenile
-                await fetchCompanyInfo();
+                if (response.success) {
+                    setSuccess('Firma bilgileri başarıyla güncellendi');
+                    // Yeni bilgileri yükle
+                    fetchCompanyInfo();
+                }
             } catch (error: any) {
-                setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');
+                if (error.response?.status === 401) {
+                    setError('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
+                    window.location.href = '/login';
+                    return;
+                }
+                setError(error.response?.data?.error || 'Firma bilgileri güncellenirken bir hata oluştu');
             }
         } catch (error: any) {
-            setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');
+            setError('Beklenmeyen bir hata oluştu');
         } finally {
             setLoading(false);
         }
@@ -457,22 +476,34 @@ const CompanyInfo = () => {
                         {/* Maps Önizleme */}
                         {(() => {
                             const mapsUrl = watch('maps');
-                            return mapsUrl && (
+                            if (!mapsUrl) return null;
+
+                            // URL'nin geçerli olup olmadığını kontrol et
+                            const isValidUrl = mapsUrl.startsWith('https://www.google.com/maps/embed');
+
+                            return (
                                 <Grid item xs={12}>
                                     <Typography variant="h6" gutterBottom>
                                         Konum Haritası
                                     </Typography>
-                                    <Box sx={{ width: '100%', height: '400px', mt: 2 }}>
-                                        <iframe
-                                            src={mapsUrl}
-                                            width="100%"
-                                            height="100%"
-                                            style={{ border: 0 }}
-                                            allowFullScreen
-                                            loading="lazy"
-                                            referrerPolicy="no-referrer-when-downgrade"
-                                        />
-                                    </Box>
+                                    {isValidUrl ? (
+                                        <Box sx={{ width: '100%', height: '400px', mt: 2 }}>
+                                            <iframe
+                                                src={mapsUrl}
+                                                width="100%"
+                                                height="100%"
+                                                style={{ border: 0 }}
+                                                allowFullScreen
+                                                loading="lazy"
+                                                referrerPolicy="no-referrer-when-downgrade"
+                                                title="Google Maps"
+                                            />
+                                        </Box>
+                                    ) : (
+                                        <Alert severity="warning" sx={{ mt: 2 }}>
+                                            Lütfen geçerli bir Google Maps Embed URL'si girin. URL "https://www.google.com/maps/embed" ile başlamalıdır.
+                                        </Alert>
+                                    )}
                                 </Grid>
                             );
                         })()}

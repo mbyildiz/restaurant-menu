@@ -20,10 +20,10 @@ const Login = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        console.log('Auth state in Login:', authState);
         if (authState.isAuthenticated) {
-            console.log('User is authenticated, navigating to admin');
-            navigate('/admin');
+            const redirectUrl = localStorage.getItem('redirectUrl') || '/admin';
+            localStorage.removeItem('redirectUrl');
+            navigate(redirectUrl);
         }
     }, [authState.isAuthenticated, navigate]);
 
@@ -35,11 +35,8 @@ const Login = () => {
         setIsSubmitting(true);
 
         try {
-            console.log('Attempting login with email:', email);
             await login(email, password);
-            console.log('Login successful');
         } catch (err) {
-            console.error('Login error in component:', err);
             let errorMessage = 'Giriş başarısız';
 
             if (err instanceof Error) {
@@ -49,6 +46,7 @@ const Login = () => {
             }
 
             setError(errorMessage);
+        } finally {
             setIsSubmitting(false);
         }
     };

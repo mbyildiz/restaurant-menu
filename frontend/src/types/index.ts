@@ -1,3 +1,5 @@
+import { User as SupabaseUser } from '@supabase/supabase-js';
+
 export interface Product {
     id: string;
     name: string;
@@ -14,14 +16,10 @@ export interface Product {
     updated_at: string;
 }
 
-export interface User {
-    id: string;
-    email: string;
-    role: string;
-}
+export type User = SupabaseUser;
 
 export interface AuthState {
-    user: User | null;
+    user: SupabaseUser | null;
     token: string | null;
     isAuthenticated: boolean;
 }

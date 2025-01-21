@@ -17,121 +17,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: false,
     });
 
-    const checkAdminStatus = async (userId: string) => {
-        console.log('Checking admin status for user:', userId);
-        const { data, error } = await supabase
-            .from('admins')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
-
-        if (error) {
-            console.error('Admin check error:', error);
-            return false;
-        }
-
-        console.log('Admin data:', data);
-        return !!data;
-    };
-
-    const updateAuthState = async (session: any) => {
-        console.log('Updating auth state with session:', session);
-        if (!session) {
-            console.log('No session, clearing auth state');
-            setAuthState({ user: null, token: null, isAuthenticated: false });
-            return;
-        }
-
+    // Session kontrolü
+    const checkSession = async () => {
         try {
-            const isAdmin = await checkAdminStatus(session.user.id);
-            console.log('Is admin?', isAdmin);
-
-            if (!isAdmin) {
-                console.log('Not an admin, signing out');
-                await supabase.auth.signOut();
-                setAuthState({ user: null, token: null, isAuthenticated: false });
-                return;
+            // Önce localStorage'daki token'ı kontrol et
+            const storedToken = localStorage.getItem('token');
+            if (storedToken) {
+                // Token varsa Supabase session'ını güncelle
+                await supabase.auth.setSession({
+                    access_token: storedToken,
+                    refresh_token: ''
+                });
             }
 
-            console.log('Setting authenticated state');
+            // Supabase session'ını kontrol et
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (session?.access_token) {
+                // Session varsa admin kontrolü yap
+                const { data: adminData } = await supabase
+                    .from('admins')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                .single();
+
+                if (adminData) {
+                    // Token'ı güncelle ve sakla
+                    localStorage.setItem('token', session.access_token);
+
+                    setAuthState({
+                        user: session.user,
+                        token: session.access_token,
+                        isAuthenticated: true,
+                    });
+                    return;
+                }
+            }
+
+            // Session veya admin yetkisi yoksa state'i temizle
+            setAuthState({
+                user: null,
+                token: null,
+                isAuthenticated: false,
+            });
+            localStorage.removeItem('token');
+        } catch (error) {
+            console.error('Session kontrol hatası:', error);
+            setAuthState({
+                user: null,
+                token: null,
+                isAuthenticated: false,
+            });
+            localStorage.removeItem('token');
+        }
+    };
+
+    // Component mount olduğunda session kontrolü yap
+    useEffect(() => {
+        checkSession();
+    }, []);
+
+    const login = async (email: string, password: string) => {
+        try {
+            const { data: { session }, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (error) throw error;
+            if (!session) throw new Error('Oturum oluşturulamadı');
+
+            // Admin kontrolü
+            const { data: adminData, error: adminError } = await supabase
+                .from('admins')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .single();
+
+            if (adminError || !adminData) {
+                throw new Error('Yönetici yetkisi bulunamadı');
+            }
+
+            // Token'ı sakla
+            localStorage.setItem('token', session.access_token);
+
             setAuthState({
                 user: session.user,
                 token: session.access_token,
                 isAuthenticated: true,
             });
+
         } catch (error) {
-            console.error('Error updating auth state:', error);
-            setAuthState({ user: null, token: null, isAuthenticated: false });
-        }
-    };
-
-    const login = async (email: string, password: string) => {
-        console.log('Attempting login for:', email);
-        try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
-            console.log('Login response:', { data, error });
-
-            if (error) {
-                console.error('Login error:', error);
-                throw error;
-            }
-
-            if (!data.session) {
-                console.error('No session in login response');
-                throw new Error('Oturum bilgisi alınamadı');
-            }
-
-            await updateAuthState(data.session);
-        } catch (error: any) {
-            console.error('Login process error:', error);
-            await supabase.auth.signOut();
-            setAuthState({ user: null, token: null, isAuthenticated: false });
+            console.error('Login error:', error);
             throw error;
         }
     };
 
     const logout = async () => {
-        console.log('Logging out');
         try {
-            const { error } = await supabase.auth.signOut();
-            if (error) console.error('Logout error:', error);
-        } finally {
-            setAuthState({ user: null, token: null, isAuthenticated: false });
+            await supabase.auth.signOut();
+            localStorage.removeItem('token');
+            setAuthState({
+                user: null,
+                token: null,
+                isAuthenticated: false,
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+            throw error;
         }
     };
-
-    useEffect(() => {
-        console.log('Setting up auth subscriptions');
-
-        const initializeAuth = async () => {
-            console.log('Initializing auth');
-            const { data: { session }, error } = await supabase.auth.getSession();
-
-            if (error) {
-                console.error('Session retrieval error:', error);
-                return;
-            }
-
-            console.log('Initial session:', session);
-            await updateAuthState(session);
-        };
-
-        initializeAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('Auth state changed:', { event, session });
-            await updateAuthState(session);
-        });
-
-        return () => {
-            console.log('Cleaning up auth subscriptions');
-            subscription.unsubscribe();
-        };
-    }, []);
 
     return (
         <AuthContext.Provider value={{ authState, login, logout }}>
@@ -142,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (context === undefined) {
+    if (!context) {
         throw new Error('useAuth must be used within an AuthProvider');
     }
     return context;
