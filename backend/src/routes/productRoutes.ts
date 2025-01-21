@@ -4,7 +4,8 @@ import {
     getProductsByCategory,
     createProduct,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    updateProductOrder
 } from '../controllers/productController';
 import { authenticateUser } from '../middleware/auth';
 
@@ -18,5 +19,6 @@ router.get('/category/:category', getProductsByCategory);
 router.post('/', authenticateUser, createProduct);
 router.put('/:id', authenticateUser, updateProduct);
 router.delete('/:id', authenticateUser, deleteProduct);
+router.post('/order', authenticateUser, updateProductOrder);
 
 export default router; 

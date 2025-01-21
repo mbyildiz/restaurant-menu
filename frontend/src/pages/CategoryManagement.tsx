@@ -15,11 +15,13 @@ import {
     Box,
     CardMedia,
     InputAdornment,
+    IconButton,
 } from '@mui/material';
 import { DragDropContext, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd';
-import { supabase } from '../services/supabase';
+import { categories as categoriesApi, upload } from '../services/api';
 import { StrictModeDroppable } from '../components';
 import SearchIcon from '@mui/icons-material/Search';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 interface Category {
     id: string;
@@ -29,16 +31,23 @@ interface Category {
     order_number: number;
 }
 
+interface FormData {
+    name: string;
+    description: string;
+    imageFile: File | null;
+    imagePreview: string;
+}
+
 const CategoryManagement = () => {
-    const [categories, setCategories] = useState<Category[]>([]);
+    const [categoryList, setCategoryList] = useState<Category[]>([]);
     const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [open, setOpen] = useState(false);
     const [editCategory, setEditCategory] = useState<Category | null>(null);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<FormData>({
         name: '',
         description: '',
-        imageFile: null as File | null,
+        imageFile: null,
         imagePreview: '',
     });
 
@@ -47,22 +56,21 @@ const CategoryManagement = () => {
     }, []);
 
     useEffect(() => {
-        const filtered = categories.filter(category =>
+        const filtered = categoryList.filter(category =>
             category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (category.description?.toLowerCase() || '').includes(searchQuery.toLowerCase())
         );
         setFilteredCategories(filtered);
-    }, [searchQuery, categories]);
+    }, [searchQuery, categoryList]);
 
     const fetchCategories = async () => {
         try {
-            const { data, error } = await supabase
-                .from('categories')
-                .select('*')
-                .order('order_number', { ascending: true });
-
-            if (error) throw error;
-            setCategories(data || []);
+            const response = await categoriesApi.getAll();
+            if (response.success) {
+                setCategoryList(response.data || []);
+            } else {
+                console.error('Kategoriler yüklenirken hata:', response.error);
+            }
         } catch (error) {
             console.error('Kategoriler yüklenirken hata:', error);
         }
@@ -111,107 +119,79 @@ const CategoryManagement = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Form validasyonu
+        const trimmedName = formData.name.trim();
+        if (!trimmedName) {
+            alert('Kategori adı zorunludur');
+            return;
+        }
+
         try {
-            let imageUrl = editCategory?.image || null;
+            const formDataToSend = new FormData();
+            formDataToSend.append('name', trimmedName);
+            formDataToSend.append('description', formData.description.trim());
 
-            // Eğer yeni bir resim yüklendiyse
             if (formData.imageFile) {
-                const { data: uploadData, error: uploadError } = await supabase
-                    .storage
-                    .from('category-images')
-                    .upload(`category-${Date.now()}.jpg`, formData.imageFile);
-
-                if (uploadError) throw uploadError;
-
-                const { data: { publicUrl } } = supabase
-                    .storage
-                    .from('category-images')
-                    .getPublicUrl(uploadData.path);
-
-                imageUrl = publicUrl;
+                formDataToSend.append('image', formData.imageFile);
             }
 
             if (editCategory) {
-                const { error } = await supabase
-                    .from('categories')
-                    .update({
-                        name: formData.name,
-                        description: formData.description || null,
-                        image: imageUrl,
-                        order_number: editCategory.order_number
-                    })
-                    .eq('id', editCategory.id);
+                formDataToSend.append('order_number', editCategory.order_number.toString());
 
-                if (error) throw error;
+                console.log('Gönderilen form verileri:', {
+                    name: trimmedName,
+                    description: formData.description.trim(),
+                    order_number: editCategory.order_number,
+                    hasImage: !!formData.imageFile
+                });
+
+                try {
+                    const response = await categoriesApi.update(editCategory.id, formDataToSend);
+                    console.log('Kategori güncelleme yanıtı:', response);
+
+                    if (response.success) {
+                        // Başarılı güncelleme sonrası listeyi yenile
+                        await fetchCategories();
+                        handleClose();
+                    } else {
+                        console.error('Kategori güncellenirken hata:', response.error);
+                    }
+                } catch (updateError) {
+                    console.error('Kategori güncellenirken hata:', updateError);
+                }
             } else {
-                // En yüksek order_number'ı bul
-                const { data: maxOrderData } = await supabase
-                    .from('categories')
-                    .select('order_number')
-                    .order('order_number', { ascending: false })
-                    .limit(1);
+                try {
+                    const response = await categoriesApi.create(formDataToSend);
+                    console.log('Kategori oluşturma yanıtı:', response);
 
-                const nextOrderNumber = maxOrderData && maxOrderData.length > 0
-                    ? maxOrderData[0].order_number + 1
-                    : 1;
-
-                const { error } = await supabase
-                    .from('categories')
-                    .insert([{
-                        name: formData.name,
-                        description: formData.description || null,
-                        image: imageUrl,
-                        order_number: nextOrderNumber
-                    }]);
-
-                if (error) throw error;
+                    if (response.success) {
+                        // Başarılı oluşturma sonrası listeyi yenile
+                        await fetchCategories();
+                        handleClose();
+                    } else {
+                        console.error('Kategori oluşturulurken hata:', response.error);
+                    }
+                } catch (createError) {
+                    console.error('Kategori oluşturulurken hata:', createError);
+                }
             }
-
-            handleClose();
-            fetchCategories();
         } catch (error) {
             console.error('Kategori kaydedilirken hata:', error);
         }
     };
 
     const handleDelete = async (id: string) => {
-        // Önce bu kategoriye bağlı ürün var mı kontrol et
-        const { data: products } = await supabase
-            .from('products')
-            .select('id')
-            .eq('category_id', id);
-
-        if (products && products.length > 0) {
-            alert('Bu kategoriye bağlı ürünler var. Önce bu ürünleri silmeli veya başka bir kategoriye taşımalısınız.');
-            return;
-        }
-
         if (window.confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) {
             try {
-                // Önce kategoriyi al
-                const { data: category } = await supabase
-                    .from('categories')
-                    .select('image')
-                    .eq('id', id)
-                    .single();
-
-                // Eğer resim varsa, önce storage'dan sil
-                if (category?.image) {
-                    const fileName = category.image.split('/').pop();
-                    if (fileName) {
-                        await supabase.storage
-                            .from('category-images')
-                            .remove([fileName]);
-                    }
+                const response = await categoriesApi.delete(id);
+                if (response.success) {
+                    setTimeout(() => {
+                        fetchCategories();
+                    }, 500);
+                } else {
+                    console.error('Kategori silinirken hata:', response.error);
                 }
-
-                const { error } = await supabase
-                    .from('categories')
-                    .delete()
-                    .eq('id', id);
-
-                if (error) throw error;
-                fetchCategories();
             } catch (error) {
                 console.error('Kategori silinirken hata:', error);
             }
@@ -221,41 +201,32 @@ const CategoryManagement = () => {
     const handleDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
-        const sourceRowIndex = parseInt(result.source.droppableId.split('-')[1]);
-        const destinationRowIndex = parseInt(result.destination.droppableId.split('-')[1]);
-        const sourceIndex = sourceRowIndex * 4 + result.source.index;
-        const destinationIndex = destinationRowIndex * 4 + result.destination.index;
+        const items = Array.from(categoryList);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
 
-        // Eğer pozisyon değişmemişse işlem yapma
-        if (sourceIndex === destinationIndex) return;
-
-        const newCategories = Array.from(categories);
-        const [movedItem] = newCategories.splice(sourceIndex, 1);
-        newCategories.splice(destinationIndex, 0, movedItem);
-
-        // Önce UI'ı güncelle
-        setCategories(newCategories);
+        const updatedCategories = items.map((item, index) => ({
+            ...item,
+            order_number: index + 1
+        }));
 
         try {
-            // Sıralama numaralarını güncelle
-            const updates = newCategories.map((category, index) => ({
-                id: category.id,
-                name: category.name,
-                description: category.description,
-                image: category.image,
-                order_number: index + 1
+            setCategoryList(updatedCategories);
+
+            const orderData = updatedCategories.map(c => ({
+                id: c.id,
+                order_number: c.order_number
             }));
 
-            // Batch update için tüm güncellemeleri bir dizide topla
-            const { error } = await supabase
-                .from('categories')
-                .upsert(updates);
+            const response = await categoriesApi.updateOrder(orderData);
 
-            if (error) throw error;
+            if (!response.success) {
+                console.error('Sıralama güncellenirken hata:', response.error);
+                await fetchCategories(); // Hata durumunda orijinal sıralamayı geri yükle
+            }
         } catch (error) {
-            console.error('Sıralama güncellenirken hata:', error);
-            // Hata durumunda orijinal listeyi geri yükle
-            fetchCategories();
+            console.error('Sıralama işlemi sırasında bir hata oluştu:', error);
+            await fetchCategories(); // Hata durumunda orijinal sıralamayı geri yükle
         }
     };
 
@@ -294,113 +265,116 @@ const CategoryManagement = () => {
             </Box>
 
             <DragDropContext onDragEnd={handleDragEnd}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {Array.from({ length: Math.ceil(filteredCategories.length / 4) }).map((_, rowIndex) => (
-                        <StrictModeDroppable
-                            key={`row-${rowIndex}`}
-                            droppableId={`row-${rowIndex}`}
-                            direction="horizontal"
+                <StrictModeDroppable droppableId="categories" direction="horizontal">
+                    {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
+                        <Box
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: {
+                                    xs: 'repeat(1, 1fr)',
+                                    sm: 'repeat(2, 1fr)',
+                                    md: 'repeat(3, 1fr)',
+                                    lg: 'repeat(4, 1fr)',
+                                },
+                                gap: 3,
+                                minHeight: '100px',
+                                padding: 2,
+                                backgroundColor: snapshot.isDraggingOver ? 'action.hover' : 'transparent',
+                                transition: 'background-color 0.2s ease'
+                            }}
                         >
-                            {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
-                                <Box
-                                    ref={provided.innerRef}
-                                    {...provided.droppableProps}
-                                    sx={{
-                                        display: 'grid',
-                                        gridTemplateColumns: {
-                                            xs: 'repeat(1, 1fr)',
-                                            sm: 'repeat(2, 1fr)',
-                                            md: 'repeat(3, 1fr)',
-                                            lg: 'repeat(4, 1fr)',
-                                        },
-                                        gap: 3,
-                                        minHeight: '100px',
-                                        padding: 2,
-                                        backgroundColor: snapshot.isDraggingOver ? 'action.hover' : 'transparent',
-                                        transition: 'background-color 0.2s ease'
-                                    }}
+                            {filteredCategories.map((category, index) => (
+                                <Draggable
+                                    key={category.id}
+                                    draggableId={category.id}
+                                    index={index}
                                 >
-                                    {filteredCategories
-                                        .slice(rowIndex * 4, (rowIndex + 1) * 4)
-                                        .map((category, index) => (
-                                            <Draggable
-                                                key={category.id}
-                                                draggableId={category.id}
-                                                index={index}
+                                    {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                                        <Box
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            {...provided.dragHandleProps}
+                                            sx={{
+                                                width: '100%',
+                                                height: '100%',
+                                                ...provided.draggableProps.style
+                                            }}
+                                        >
+                                            <Card
+                                                elevation={snapshot.isDragging ? 6 : 1}
+                                                sx={{
+                                                    height: '100%',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    opacity: snapshot.isDragging ? 0.6 : 1,
+                                                    transform: snapshot.isDragging ? 'scale(1.02)' : 'scale(1)',
+                                                    transition: 'transform 0.2s, opacity 0.2s',
+                                                    '& .MuiCardMedia-root': {
+                                                        height: 200,
+                                                        objectFit: 'cover'
+                                                    },
+                                                    '& .MuiCardContent-root': {
+                                                        flexGrow: 1,
+                                                        p: 2.5
+                                                    },
+                                                    '& .MuiCardActions-root': {
+                                                        p: 2,
+                                                        justifyContent: 'space-between'
+                                                    }
+                                                }}
                                             >
-                                                {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                                                    <Box
-                                                        ref={provided.innerRef}
-                                                        {...provided.draggableProps}
-                                                        {...provided.dragHandleProps}
+                                                {category.image && (
+                                                    <CardMedia
+                                                        component="img"
+                                                        image={category.image}
+                                                        alt={category.name}
+                                                        loading="lazy"
+                                                        crossOrigin="anonymous"
                                                         sx={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            ...provided.draggableProps.style
+                                                            height: 200,
+                                                            objectFit: 'contain',
+                                                            backgroundColor: 'background.paper'
                                                         }}
-                                                    >
-                                                        <Card
-                                                            elevation={snapshot.isDragging ? 6 : 1}
-                                                            sx={{
-                                                                height: '100%',
-                                                                display: 'flex',
-                                                                flexDirection: 'column',
-                                                                opacity: snapshot.isDragging ? 0.6 : 1,
-                                                                transform: snapshot.isDragging ? 'scale(1.02)' : 'scale(1)',
-                                                                transition: 'transform 0.2s, opacity 0.2s',
-                                                                '& .MuiCardMedia-root': {
-                                                                    height: 200,
-                                                                    objectFit: 'cover'
-                                                                },
-                                                                '& .MuiCardContent-root': {
-                                                                    flexGrow: 1,
-                                                                    p: 2.5
-                                                                },
-                                                                '& .MuiCardActions-root': {
-                                                                    p: 2,
-                                                                    justifyContent: 'space-between'
-                                                                }
-                                                            }}
-                                                        >
-                                                            {category.image && (
-                                                                <CardMedia
-                                                                    component="img"
-                                                                    image={category.image}
-                                                                    alt={category.name}
-                                                                />
-                                                            )}
-                                                            <CardContent>
-                                                                <Typography gutterBottom variant="h6" component="div">
-                                                                    {category.name}
-                                                                </Typography>
-                                                                {category.description && (
-                                                                    <Typography variant="body2" color="text.secondary">
-                                                                        {category.description}
-                                                                    </Typography>
-                                                                )}
-                                                            </CardContent>
-                                                            <CardActions>
-                                                                <Button size="small" onClick={() => handleOpen(category)}>
-                                                                    Düzenle
-                                                                </Button>
-                                                                <Button
-                                                                    size="small"
-                                                                    color="error"
-                                                                    onClick={() => handleDelete(category.id)}
-                                                                >
-                                                                    Sil
-                                                                </Button>
-                                                            </CardActions>
-                                                        </Card>
-                                                    </Box>
+                                                        onError={(e) => {
+                                                            console.error('Resim yükleme hatası:', e);
+                                                            const imgElement = e.target as HTMLImageElement;
+                                                            imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM2NjY2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5SZXNpbSBZw7xrbGVuZW1lZGk8L3RleHQ+PC9zdmc+';
+                                                        }}
+                                                    />
                                                 )}
-                                            </Draggable>
-                                        ))}
-                                </Box>
-                            )}
-                        </StrictModeDroppable>
-                    ))}
-                </Box>
+                                                <CardContent>
+                                                    <Typography gutterBottom variant="h6" component="div">
+                                                        {category.name}
+                                                    </Typography>
+                                                    {category.description && (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            {category.description}
+                                                        </Typography>
+                                                    )}
+                                                </CardContent>
+                                                <CardActions>
+                                                    <Button size="small" onClick={() => handleOpen(category)}>
+                                                        Düzenle
+                                                    </Button>
+                                                    <IconButton
+                                                        size="small"
+                                                        color="error"
+                                                        onClick={() => handleDelete(category.id)}
+                                                    >
+                                                        <DeleteIcon />
+                                                    </IconButton>
+                                                </CardActions>
+                                            </Card>
+                                        </Box>
+                                    )}
+                                </Draggable>
+                            ))}
+                            {provided.placeholder}
+                        </Box>
+                    )}
+                </StrictModeDroppable>
             </DragDropContext>
 
             <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -463,10 +437,16 @@ const CategoryManagement = () => {
                                     <img
                                         src={formData.imagePreview}
                                         alt="Önizleme"
+                                        loading="lazy"
                                         style={{
                                             maxWidth: '100%',
                                             maxHeight: '200px',
                                             objectFit: 'contain'
+                                        }}
+                                        onError={(e) => {
+                                            console.error('Önizleme resmi yükleme hatası:', e);
+                                            const imgElement = e.target as HTMLImageElement;
+                                            imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM2NjY2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5SZXNpbSBZw7xrbGVuZW1lZGk8L3RleHQ+PC9zdmc+';
                                         }}
                                     />
                                 </Box>

@@ -3,7 +3,8 @@ import {
     getAllCategories,
     createCategory,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    updateCategoryOrder
 } from '../controllers/categoryController';
 import { authenticateUser } from '../middleware/auth';
 
@@ -16,5 +17,6 @@ router.get('/', getAllCategories);
 router.post('/', authenticateUser, createCategory);
 router.put('/:id', authenticateUser, updateCategory);
 router.delete('/:id', authenticateUser, deleteCategory);
+router.post('/order', authenticateUser, updateCategoryOrder);
 
 export default router; 

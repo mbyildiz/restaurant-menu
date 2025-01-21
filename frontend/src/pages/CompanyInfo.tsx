@@ -13,8 +13,9 @@ import {
     Link,
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
-import { supabase } from '../config/supabaseClient';
 import QRCode from 'qrcode';
+import { company, upload } from '../services/api';
+import axios from 'axios';
 
 interface CompanyInfoForm {
     company_name: string;
@@ -39,6 +40,7 @@ const CompanyInfo = () => {
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string>('');
     const [companyInfo, setCompanyInfo] = useState<CompanyInfoForm | null>(null);
+    const [storedLogo, setStoredLogo] = useState<string | null>(null);
 
     const { register, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm<CompanyInfoForm>({
         defaultValues: {
@@ -67,18 +69,7 @@ const CompanyInfo = () => {
             setLoading(true);
             setError(null);
 
-            const { data, error } = await supabase
-                .from('company_info')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (error) {
-                console.error('Veri çekme hatası:', error);
-                setError('Firma bilgileri yüklenirken hata oluştu');
-                return;
-            }
+            const data = await company.getInfo();
 
             if (data) {
                 console.log('Alınan firma bilgileri:', data);
@@ -100,33 +91,7 @@ const CompanyInfo = () => {
                 });
                 console.log('Form reset sonrası maps değeri:', watch('maps'));
                 setLogoPreview(data.logo_url || '');
-            } else {
-                // İlk kayıt oluştur
-                const { data: newCompany, error: createError } = await supabase
-                    .from('company_info')
-                    .insert([{
-                        company_name: '',
-                        company_address: '',
-                        phone_number: '',
-                        social_media: {
-                            facebook: '',
-                            instagram: '',
-                            twitter: ''
-                        },
-                        maps: ''
-                    }])
-                    .select()
-                    .single();
-
-                if (createError) {
-                    console.error('Kayıt oluşturma hatası:', createError);
-                    setError('Firma kaydı oluşturulurken hata oluştu');
-                    return;
-                }
-
-                if (newCompany) {
-                    setCompanyId(newCompany.id);
-                }
+                setStoredLogo(data.logo_url || null);
             }
         } catch (error: any) {
             console.error('Beklenmeyen hata:', error);
@@ -167,33 +132,13 @@ const CompanyInfo = () => {
             setLoading(true);
             setError(null);
 
-            // Eski logoyu storage'dan sil
-            const fileName = currentLogo.split('/').pop();
-            if (fileName) {
-                const { error: storageError } = await supabase.storage
-                    .from('company-logos')
-                    .remove([fileName]);
-
-                if (storageError) {
-                    console.error('Logo silme hatası:', storageError);
-                    throw new Error('Logo silinirken hata oluştu');
-                }
-            }
-
-            // Veritabanından logo_url'i temizle
-            const { error: updateError } = await supabase
-                .from('company_info')
-                .update({ logo_url: null })
-                .eq('id', companyId);
-
-            if (updateError) {
-                console.error('Logo URL güncelleme hatası:', updateError);
-                throw new Error('Logo bilgisi güncellenirken hata oluştu');
-            }
+            // Firma bilgilerini güncelle
+            await company.update({ logo_url: null });
 
             setValue('logo_url', '');
             setLogoPreview('');
             setLogoFile(null);
+            setStoredLogo(null);
             setSuccess('Logo başarıyla silindi');
         } catch (error: any) {
             console.error('Logo silme işlemi hatası:', error);
@@ -226,57 +171,58 @@ const CompanyInfo = () => {
             console.log('Gönderilecek maps değeri:', data.maps);
 
             let logoUrl = currentLogo;
-            let qrCodeUrl = null;
+            let qrCodeUrl = data.qr_code || null;
 
             // Website adresi varsa QR kod oluştur
             if (data.website) {
                 try {
-                    qrCodeUrl = await generateQRCode(data.website);
+                    // Sadece website değişmişse veya QR kod yoksa yeni QR kod oluştur
+                    if (!qrCodeUrl || data.website !== companyInfo?.website) {
+                        qrCodeUrl = await generateQRCode(data.website);
+                        console.log('Yeni QR kod oluşturuldu:', qrCodeUrl);
+                    }
                 } catch (qrError) {
                     console.error('QR kod oluşturma hatası:', qrError);
-                    setError('QR kod oluşturulurken hata oluştu');
-                    return;
+                    // QR kod hatası durumunda mevcut QR kodu koru
+                    console.log('Mevcut QR kod korunuyor');
                 }
+            } else {
+                // Website yoksa QR kodu null yap
+                qrCodeUrl = null;
             }
 
             // Yeni logo yüklendiyse
             if (logoFile) {
                 try {
-                    // Eski logoyu sil
-                    if (currentLogo) {
-                        const oldFileName = currentLogo.split('/').pop();
-                        if (oldFileName) {
-                            await supabase.storage
-                                .from('company-logos')
-                                .remove([oldFileName]);
-                        }
+                    const uploadResult = await upload.image(logoFile);
+                    console.log('Logo yükleme sonucu (ham veri):', JSON.stringify(uploadResult, null, 2));
+                    console.log('Logo yükleme sonucu data:', uploadResult.data);
+                    console.log('Logo yükleme sonucu success:', uploadResult.success);
+
+                    if (!uploadResult.success || !uploadResult.data?.url) {
+                        throw new Error('Logo yükleme yanıtı alınamadı');
                     }
 
-                    // Dosya adını güvenli hale getir
-                    const fileExt = logoFile.name.split('.').pop();
-                    const safeFileName = `logo-${Date.now()}.${fileExt}`;
+                    // Supabase'den gelen URL'yi kullan
+                    logoUrl = uploadResult.data.url;
+                    console.log('Supabase\'den gelen URL:', logoUrl);
 
-                    // Yeni logoyu yükle
-                    const { error: uploadError } = await supabase.storage
-                        .from('company-logos')
-                        .upload(safeFileName, logoFile, {
-                            cacheControl: '3600',
-                            upsert: true
-                        });
+                    // Logo URL'sini state ve form'a kaydet
+                    setStoredLogo(logoUrl);
+                    setValue('logo_url', logoUrl);
 
-                    if (uploadError) {
-                        console.error('Logo yükleme hatası:', uploadError);
-                        throw new Error('Logo yüklenirken hata oluştu');
-                    }
-
-                    const { data: { publicUrl } } = supabase.storage
-                        .from('company-logos')
-                        .getPublicUrl(safeFileName);
-
-                    logoUrl = publicUrl;
                 } catch (uploadError: any) {
-                    console.error('Logo yükleme işlemi hatası:', uploadError);
-                    throw new Error('Logo yüklenirken hata oluştu: ' + uploadError.message);
+                    console.error('Logo yükleme hatası:', uploadError);
+                    let errorMessage = 'Logo yüklenirken hata oluştu';
+
+                    if (uploadError.response?.status === 401) {
+                        errorMessage = 'Oturum süreniz dolmuş olabilir. Lütfen sayfayı yenileyip tekrar deneyin.';
+                    } else if (uploadError.message) {
+                        errorMessage = uploadError.message;
+                    }
+
+                    setError(errorMessage);
+                    return;
                 }
             }
 
@@ -287,25 +233,27 @@ const CompanyInfo = () => {
                 phone_number: data.phone_number,
                 website: data.website,
                 social_media: data.social_media,
-                logo_url: logoUrl,
+                logo_url: logoUrl || storedLogo,
                 qr_code: qrCodeUrl,
-                maps: data.maps
+                maps: data.maps,
+                updated_at: new Date().toISOString()
             };
 
-            console.log('Supabase\'e gönderilen veri:', updateData);
+            console.log('Güncellenecek logo URL:', logoUrl);
+            console.log('Stored logo URL:', storedLogo);
+            console.log('API\'ye gönderilen veri:', updateData);
 
-            const { error: updateError } = await supabase
-                .from('company_info')
-                .update(updateData)
-                .eq('id', companyId);
+            try {
+                const response = await company.update(updateData);
+                console.log('Güncelleme başarılı:', response);
+                setSuccess('Firma bilgileri başarıyla güncellendi');
 
-            if (updateError) {
-                console.error('Güncelleme hatası:', updateError);
-                throw new Error('Firma bilgileri güncellenirken hata oluştu');
+                // Sayfayı yenile
+                await fetchCompanyInfo();
+            } catch (error: any) {
+                console.error('Form gönderme hatası:', error);
+                setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');
             }
-
-            console.log('Güncelleme başarılı');
-            setSuccess('Firma bilgileri başarıyla güncellendi');
         } catch (error: any) {
             console.error('Form gönderme hatası:', error);
             setError(error.message || 'Firma bilgileri güncellenirken bir hata oluştu');

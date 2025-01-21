@@ -12,26 +12,13 @@ import {
     Divider,
     Link
 } from '@mui/material';
-import { supabase } from '../services/supabase';
-import { Product, Category } from '../types';
+import { Product, Category, CompanyInfo } from '../types';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import Carousel from 'react-material-ui-carousel';
 import FacebookIcon from '@mui/icons-material/Facebook';
 import InstagramIcon from '@mui/icons-material/Instagram';
 import TwitterIcon from '@mui/icons-material/Twitter';
-
-interface CompanyInfo {
-    company_name: string;
-    company_address: string;
-    phone_number: string;
-    social_media: {
-        facebook?: string;
-        instagram?: string;
-        twitter?: string;
-    };
-    logo_url?: string;
-    maps?: string;
-}
+import { visitors, company, categories as categoryApi, products as productApi } from '../services/api';
 
 const Home = () => {
     const [products, setProducts] = useState<Product[]>([]);
@@ -68,24 +55,7 @@ const Home = () => {
 
     const incrementVisitorCount = async () => {
         try {
-            // Önce mevcut sayıyı al
-            const { data: currentData, error: fetchError } = await supabase
-                .from('visitors')
-                .select('count')
-                .single();
-
-            if (fetchError && fetchError.code !== 'PGRST116') {
-                throw fetchError;
-            }
-
-            const currentCount = currentData?.count || 0;
-
-            // Sayıyı güncelle
-            const { error: updateError } = await supabase
-                .from('visitors')
-                .upsert({ id: 1, count: currentCount + 1 });
-
-            if (updateError) throw updateError;
+            await visitors.increment();
         } catch (error) {
             console.error('Ziyaretçi sayısı güncellenirken hata:', error);
         }
@@ -93,14 +63,7 @@ const Home = () => {
 
     const fetchCompanyInfo = async () => {
         try {
-            const { data, error } = await supabase
-                .from('company_info')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (error) throw error;
+            const data = await company.getInfo();
             setCompanyInfo(data);
         } catch (error) {
             console.error('Firma bilgileri yüklenirken hata:', error);
@@ -110,14 +73,8 @@ const Home = () => {
     const fetchCategories = async () => {
         try {
             setCategoriesLoading(true);
-            const { data, error } = await supabase
-                .from('categories')
-                .select('*')
-                .order('order_number', { ascending: true });
-
-            if (error) throw error;
-
-            const formattedData = data?.map(category => {
+            const data = await categoryApi.getAll();
+            const formattedData = data?.map((category: Category) => {
                 let imageUrl = null;
                 if (category.image && typeof category.image === 'string') {
                     try {
@@ -144,20 +101,8 @@ const Home = () => {
 
     const fetchProducts = async () => {
         try {
-            const { data, error } = await supabase
-                .from('products')
-                .select(`
-                    *,
-                    categories:category_id (
-                        id,
-                        name
-                    )
-                `)
-                .order('order_number', { ascending: true });
-
-            if (error) throw error;
-
-            const formattedData = data?.map(product => {
+            const data = await productApi.getAll();
+            const formattedData = data?.map((product: Product) => {
                 let formattedImages: string[] = [];
 
                 if (Array.isArray(product.images)) {

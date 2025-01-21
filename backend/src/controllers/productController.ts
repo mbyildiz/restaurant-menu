@@ -1,11 +1,45 @@
 import { Request, Response } from 'express';
-import { supabase } from '../config/supabaseClient';
+import { adminSupabase as supabase } from '../config/supabaseClient';
 import { Product } from '../models/Product';
+import path from 'path';
+import fs from 'fs/promises';
+import { UploadedFile } from 'express-fileupload';
+
+// Dosya adını temizleme fonksiyonu
+const sanitizeFileName = (fileName: string): string => {
+    // Türkçe karakterleri değiştir
+    const turkishChars: { [key: string]: string } = {
+        'ğ': 'g', 'Ğ': 'G',
+        'ü': 'u', 'Ü': 'U',
+        'ş': 's', 'Ş': 'S',
+        'ı': 'i', 'İ': 'I',
+        'ö': 'o', 'Ö': 'O',
+        'ç': 'c', 'Ç': 'C'
+    };
+
+    let cleanName = fileName;
+
+    // Türkçe karakterleri değiştir
+    Object.entries(turkishChars).forEach(([turkishChar, latinChar]) => {
+        cleanName = cleanName.replace(new RegExp(turkishChar, 'g'), latinChar);
+    });
+
+    // Sadece alfanumerik karakterler, tire ve alt çizgi kalacak şekilde temizle
+    cleanName = cleanName.replace(/[^a-zA-Z0-9-_\.]/g, '-');
+
+    // Birden fazla tireyi tek tireye indir
+    cleanName = cleanName.replace(/-+/g, '-');
+
+    // Baştaki ve sondaki tireleri kaldır
+    cleanName = cleanName.replace(/^-+|-+$/g, '');
+
+    return cleanName.toLowerCase();
+};
 
 // Tüm ürünleri getir
 export const getAllProducts = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { data, error } = await supabase
+        const { data: products, error, status } = await supabase
             .from('products')
             .select(`
                 *,
@@ -16,10 +50,26 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
             `)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        res.status(200).json(data);
+        if (error) {
+            res.status(status || 500).json({
+                success: false,
+                error: error.message,
+                details: error.details
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: products,
+            count: products?.length || 0
+        });
     } catch (error) {
-        res.status(500).json({ error: 'Ürünler getirilirken bir hata oluştu' });
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
     }
 };
 
@@ -27,7 +77,16 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
 export const getProductsByCategory = async (req: Request, res: Response): Promise<void> => {
     try {
         const { category } = req.params;
-        const { data, error } = await supabase
+
+        if (!category) {
+            res.status(400).json({
+                success: false,
+                error: 'Kategori ID zorunludur'
+            });
+            return;
+        }
+
+        const { data: products, error, status } = await supabase
             .from('products')
             .select(`
                 *,
@@ -39,48 +98,176 @@ export const getProductsByCategory = async (req: Request, res: Response): Promis
             .eq('category_id', category)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        res.status(200).json(data);
+        if (error) {
+            res.status(status || 500).json({
+                success: false,
+                error: error.message,
+                details: error.details
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: products,
+            count: products?.length || 0
+        });
     } catch (error) {
-        res.status(500).json({ error: 'Ürünler getirilirken bir hata oluştu' });
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
+    }
+};
+
+// Ürün detayını getir
+export const getProductById = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            res.status(400).json({
+                success: false,
+                error: 'Ürün ID zorunludur'
+            });
+            return;
+        }
+
+        const { data: product, error, status } = await supabase
+            .from('products')
+            .select(`
+                *,
+                categories:category_id (
+                    id,
+                    name
+                )
+            `)
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            res.status(status || 404).json({
+                success: false,
+                error: error.message,
+                details: error.details
+            });
+            return;
+        }
+
+        if (!product) {
+            res.status(404).json({
+                success: false,
+                error: 'Ürün bulunamadı'
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: product
+        });
+    } catch (error) {
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
     }
 };
 
 // Yeni ürün ekle
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
     try {
-        const product: Product = req.body;
-        const imageBase64Array = req.body.imageBase64Array || [];
-        const imageUrls: string[] = [];
+        console.log('Gelen form verileri:', req.body);
+        console.log('Gelen dosyalar:', req.files);
 
-        // Resimleri yükle
-        for (const imageBase64 of imageBase64Array) {
-            const base64Data = imageBase64.split(',')[1];
-            const fileName = `product-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+        const { name, description, price, category_id } = req.body;
 
-            const { data: uploadData, error: uploadError } = await supabase
-                .storage
-                .from('product-images')
-                .upload(fileName, Buffer.from(base64Data, 'base64'), {
-                    contentType: 'image/jpeg'
+        // Zorunlu alan kontrolleri
+        if (!name || !price || !category_id) {
+            res.status(400).json({
+                success: false,
+                error: 'Ürün adı, fiyat ve kategori zorunludur'
+            });
+            return;
+        }
+
+        let imageUrl: string | null = null;
+
+        if (req.files && typeof req.files === 'object' && 'image' in req.files) {
+            const image = req.files.image as UploadedFile;
+            console.log('Yüklenen resim:', image.name, image.mimetype);
+
+            // Dosya tipi kontrolü
+            if (!image.mimetype.startsWith('image/')) {
+                console.log('Geçersiz dosya tipi:', image.mimetype);
+                res.status(400).json({
+                    success: false,
+                    error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
                 });
+                return;
+            }
 
-            if (uploadError) throw uploadError;
+            const safeFileName = sanitizeFileName(image.name);
+            const fileName = `product-${Date.now()}-${safeFileName}`;
+            console.log('Oluşturulan dosya adı:', fileName);
 
-            const { data: { publicUrl } } = supabase
-                .storage
-                .from('product-images')
-                .getPublicUrl(fileName);
+            try {
+                // Windows'ta dosya yolunu düzelt
+                const normalizedPath = path.normalize(image.tempFilePath);
+                console.log('Dosya yolu:', normalizedPath);
 
-            imageUrls.push(publicUrl);
+                // Dosya boyutunu kontrol et
+                const stats = await fs.stat(normalizedPath);
+                console.log('Dosya boyutu:', stats.size);
+
+                // Dosyayı oku
+                const fileContent = await fs.readFile(normalizedPath);
+                console.log('Okunan dosya boyutu:', fileContent.length);
+
+                // Resmi yükle
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, fileContent, {
+                        contentType: image.mimetype,
+                        upsert: true
+                    });
+
+                if (uploadError) {
+                    console.error('Resim yükleme hatası:', uploadError);
+                    throw uploadError;
+                }
+
+                console.log('Resim yükleme başarılı:', uploadData);
+
+                // Public URL'yi al
+                const { data: { publicUrl } } = supabase
+                    .storage
+                    .from('product-images')
+                    .getPublicUrl(fileName);
+
+                console.log('Oluşturulan public URL:', publicUrl);
+                imageUrl = publicUrl;
+            } catch (error) {
+                console.error('Resim yükleme işlemi hatası:', error);
+                throw error;
+            }
         }
 
         const productData = {
-            ...product,
-            images: imageUrls
+            name,
+            price: parseFloat(price),
+            description: description || null,
+            category_id,
+            images: imageUrl ? [imageUrl] : [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         };
 
-        const { data, error } = await supabase
+        console.log('Kaydedilecek ürün verileri:', productData);
+
+        const { data, error, status } = await supabase
             .from('products')
             .insert([productData])
             .select(`
@@ -89,48 +276,302 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
                     id,
                     name
                 )
-            `);
+            `)
+            .single();
 
-        if (error) throw error;
-        res.status(201).json(data[0]);
+        if (error) {
+            console.error('Ürün kaydetme hatası:', error);
+            res.status(status || 400).json({
+                success: false,
+                error: error.message,
+                details: error.details
+            });
+            return;
+        }
+
+        console.log('Ürün başarıyla kaydedildi:', data);
+        res.status(201).json({
+            success: true,
+            data: data
+        });
     } catch (error) {
-        res.status(500).json({ error: 'Ürün eklenirken bir hata oluştu' });
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
     }
 };
 
 // Ürün güncelle
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
     try {
+        console.log('Güncelleme için gelen veriler:', {
+            params: req.params,
+            body: req.body,
+            files: req.files
+        });
+
         const { id } = req.params;
-        const updates = { ...req.body };
-        const imageBase64Array = req.body.imageBase64Array || [];
+        const { name, description, price, category_id } = req.body;
+        let existingImages: string[] = [];
 
-        // Eğer yeni resimler yükleniyorsa
-        if (imageBase64Array.length > 0) {
-            // Önce eski resimleri sil
-            const { data: oldProduct } = await supabase
-                .from('products')
-                .select('images')
-                .eq('id', id)
-                .single();
+        try {
+            existingImages = JSON.parse(req.body.images || '[]');
+        } catch (error) {
+            console.error('Mevcut resimler parse edilirken hata:', error);
+        }
 
-            if (oldProduct?.images) {
-                for (const imageUrl of oldProduct.images) {
-                    const fileName = imageUrl.split('/').pop();
-                    await supabase
-                        .storage
+        // Ürünü kontrol et
+        const { data: existingProduct, error: fetchError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !existingProduct) {
+            console.error('Ürün bulunamadı:', { id, error: fetchError });
+            res.status(404).json({
+                success: false,
+                error: 'Ürün bulunamadı'
+            });
+            return;
+        }
+
+        console.log('Mevcut ürün:', existingProduct);
+
+        const updateData: any = {
+            name: name || existingProduct.name,
+            price: price ? parseFloat(price) : existingProduct.price,
+            description: description !== undefined ? description : existingProduct.description,
+            category_id: category_id || existingProduct.category_id,
+            updated_at: new Date().toISOString()
+        };
+
+        if (req.files && typeof req.files === 'object' && 'image' in req.files) {
+            const image = req.files.image as UploadedFile;
+            console.log('Yeni yüklenen resim:', image.name, image.mimetype);
+
+            // Dosya tipi kontrolü
+            if (!image.mimetype.startsWith('image/')) {
+                console.log('Geçersiz dosya tipi:', image.mimetype);
+                res.status(400).json({
+                    success: false,
+                    error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
+                });
+                return;
+            }
+
+            // Eski resimleri sil
+            if (existingProduct.images && existingProduct.images.length > 0) {
+                try {
+                    for (const oldImageUrl of existingProduct.images) {
+                        const oldFileName = oldImageUrl.split('/product-images/').pop();
+                        if (oldFileName) {
+                            console.log('Silinecek eski resim:', oldFileName);
+                            const { error: deleteError } = await supabase.storage
+                                .from('product-images')
+                                .remove([oldFileName]);
+
+                            if (deleteError) {
+                                console.error('Eski resim silinirken hata:', deleteError);
+                                throw deleteError;
+                            }
+                            console.log('Eski resim başarıyla silindi');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Eski resim silme hatası:', error);
+                }
+            }
+
+            // Yeni resmi yükle
+            const safeFileName = sanitizeFileName(image.name);
+            const fileName = `product-${Date.now()}-${safeFileName}`;
+            console.log('Yeni resim için oluşturulan dosya adı:', fileName);
+
+            try {
+                // Windows'ta dosya yolunu düzelt
+                const normalizedPath = path.normalize(image.tempFilePath);
+                console.log('Dosya yolu:', normalizedPath);
+
+                // Dosya boyutunu kontrol et
+                const stats = await fs.stat(normalizedPath);
+                console.log('Dosya boyutu:', stats.size);
+
+                // Dosyayı oku
+                const fileContent = await fs.readFile(normalizedPath);
+                console.log('Okunan dosya boyutu:', fileContent.length);
+
+                // Resmi yükle
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, fileContent, {
+                        contentType: image.mimetype,
+                        upsert: true
+                    });
+
+                if (uploadError) {
+                    console.error('Resim yükleme hatası:', uploadError);
+                    throw uploadError;
+                }
+
+                console.log('Resim yükleme başarılı:', uploadData);
+
+                // Public URL'yi al
+                const { data: { publicUrl } } = supabase
+                    .storage
+                    .from('product-images')
+                    .getPublicUrl(fileName);
+
+                console.log('Oluşturulan public URL:', publicUrl);
+                updateData.images = [publicUrl];
+            } catch (error) {
+                console.error('Resim yükleme işlemi hatası:', error);
+                throw error;
+            }
+        }
+
+        console.log('Güncellenecek veriler:', updateData);
+
+        const { data, error: updateError, status } = await supabase
+            .from('products')
+            .update(updateData)
+            .eq('id', id)
+            .select(`
+                *,
+                categories:category_id (
+                    id,
+                    name
+                )
+            `)
+            .single();
+
+        if (updateError) {
+            console.error('Ürün güncellenirken hata:', updateError);
+            res.status(status || 400).json({
+                success: false,
+                error: updateError.message,
+                details: updateError.details
+            });
+            return;
+        }
+
+        console.log('Ürün başarıyla güncellendi:', data);
+        res.status(200).json({
+            success: true,
+            data: data
+        });
+    } catch (error) {
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
+    }
+};
+
+// Ürün sil
+export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        // Ürünü kontrol et
+        const { data: product, error: fetchError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !product) {
+            res.status(404).json({
+                success: false,
+                error: 'Ürün bulunamadı'
+            });
+            return;
+        }
+
+        // Resimleri sil
+        if (product.images) {
+            for (const imageUrl of product.images) {
+                const fileName = imageUrl.split('/').pop();
+                if (fileName) {
+                    await supabase.storage
                         .from('product-images')
                         .remove([fileName]);
                 }
             }
+        }
 
-            // Yeni resimleri yükle
-            const imageUrls: string[] = [];
-            for (const imageBase64 of imageBase64Array) {
+        // Ürünü sil
+        const { error: deleteError, status } = await supabase
+            .from('products')
+            .delete()
+            .eq('id', id);
+
+        if (deleteError) {
+            res.status(status || 400).json({
+                success: false,
+                error: deleteError.message,
+                details: deleteError.details
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Ürün başarıyla silindi'
+        });
+    } catch (error) {
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
+    }
+};
+
+// Ürün resimlerini yükle
+export const uploadProductImages = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { productId, images } = req.body;
+
+        if (!productId || !Array.isArray(images)) {
+            res.status(400).json({
+                success: false,
+                error: 'Ürün ID ve resimler zorunludur'
+            });
+            return;
+        }
+
+        // Ürünü kontrol et
+        const { data: product, error: fetchError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', productId)
+            .single();
+
+        if (fetchError || !product) {
+            res.status(404).json({
+                success: false,
+                error: 'Ürün bulunamadı'
+            });
+            return;
+        }
+
+        const imageUrls: string[] = [];
+
+        try {
+            // Resimleri yükle
+            for (const imageBase64 of images) {
                 const base64Data = imageBase64.split(',')[1];
+                if (!base64Data) {
+                    throw new Error('Geçersiz resim formatı');
+                }
+
                 const fileName = `product-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
 
-                const { data: uploadData, error: uploadError } = await supabase
+                const { error: uploadError } = await supabase
                     .storage
                     .from('product-images')
                     .upload(fileName, Buffer.from(base64Data, 'base64'), {
@@ -147,110 +588,85 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
                 imageUrls.push(publicUrl);
             }
 
-            updates.images = imageUrls;
+            // Ürünü güncelle
+            const { error: updateError, status } = await supabase
+                .from('products')
+                .update({
+                    images: imageUrls,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', productId);
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    images: imageUrls
+                }
+            });
+        } catch (error) {
+            // Hata durumunda yüklenen resimleri temizle
+            for (const imageUrl of imageUrls) {
+                const fileName = imageUrl.split('/').pop();
+                if (fileName) {
+                    await supabase.storage
+                        .from('product-images')
+                        .remove([fileName]);
+                }
+            }
+            throw error;
         }
-
-        delete updates.imageBase64Array;
-
-        const { data, error } = await supabase
-            .from('products')
-            .update(updates)
-            .eq('id', id)
-            .select(`
-                *,
-                categories:category_id (
-                    id,
-                    name
-                )
-            `);
-
-        if (error) throw error;
-        res.status(200).json(data[0]);
     } catch (error) {
-        res.status(500).json({ error: 'Ürün güncellenirken bir hata oluştu' });
+        console.error('Beklenmeyen hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
     }
 };
 
-// Ürün sil
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+// Ürün sıralamasını güncelle
+export const updateProductOrder = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const { products } = req.body;
 
-        // Önce ürünü al
-        const { data: product, error: fetchError } = await supabase
-            .from('products')
-            .select('images')
-            .eq('id', id)
-            .single();
+        if (!Array.isArray(products)) {
+            res.status(400).json({
+                success: false,
+                error: 'Geçersiz veri formatı'
+            });
+            return;
+        }
 
-        if (fetchError) throw fetchError;
+        // Her bir ürün için sıralama numarasını güncelle
+        for (const product of products) {
+            const { error } = await supabase
+                .from('products')
+                .update({ order_number: product.order_number })
+                .eq('id', product.id);
 
-        // Eğer resimler varsa, önce resimleri sil
-        if (product?.images) {
-            for (const imageUrl of product.images) {
-                const fileName = imageUrl.split('/').pop();
-                const { error: deleteImageError } = await supabase
-                    .storage
-                    .from('product-images')
-                    .remove([fileName]);
-
-                if (deleteImageError) throw deleteImageError;
+            if (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    details: error.details
+                });
+                return;
             }
         }
 
-        // Ürünü sil
-        const { error } = await supabase
-            .from('products')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
-        res.status(200).json({ message: 'Ürün başarıyla silindi' });
+        res.status(200).json({
+            success: true,
+            message: 'Ürün sıralaması güncellendi'
+        });
     } catch (error) {
-        res.status(500).json({ error: 'Ürün silinirken bir hata oluştu' });
-    }
-};
-
-// Ürün resimlerini yükle
-export const uploadProductImages = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { productId, images } = req.body;
-
-        const imageUrls: string[] = [];
-
-        // Resimleri yükle
-        for (const imageBase64 of images) {
-            const base64Data = imageBase64.split(',')[1];
-            const fileName = `product-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-
-            const { data: uploadData, error: uploadError } = await supabase
-                .storage
-                .from('product-images')
-                .upload(fileName, Buffer.from(base64Data, 'base64'), {
-                    contentType: 'image/jpeg'
-                });
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase
-                .storage
-                .from('product-images')
-                .getPublicUrl(fileName);
-
-            imageUrls.push(publicUrl);
-        }
-
-        // Ürünü güncelle
-        const { error: updateError } = await supabase
-            .from('products')
-            .update({ images: imageUrls })
-            .eq('id', productId);
-
-        if (updateError) throw updateError;
-
-        res.status(200).json({ imageUrls });
-    } catch (error) {
-        console.error('Resim yükleme hatası:', error);
-        res.status(500).json({ error: 'Resimler yüklenirken bir hata oluştu' });
+        console.error('Sıralama güncellenirken hata:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Sunucu hatası oluştu'
+        });
     }
 }; 

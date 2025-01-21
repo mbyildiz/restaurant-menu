@@ -22,8 +22,8 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { DragDropContext, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd';
-import { supabase } from '../services/supabase';
 import { StrictModeDroppable } from '../components';
+import { products as productService, upload, categories as categoryService } from '../services/api';
 
 interface Product {
     id: string;
@@ -65,8 +65,8 @@ const ProductManagement = () => {
         description: '',
         price: '',
         category_id: '',
-        images: [] as string[],
-        imageBase64Array: [] as string[],
+        imageFile: null as File | null,
+        imagePreview: '',
     });
 
     useEffect(() => {
@@ -84,13 +84,12 @@ const ProductManagement = () => {
 
     const fetchCategories = async () => {
         try {
-            const { data, error } = await supabase
-                .from('categories')
-                .select('*')
-                .order('name');
-
-            if (error) throw error;
-            setCategories(data || []);
+            const response = await categoryService.getAll();
+            if (response.success) {
+                setCategories(response.data || []);
+            } else {
+                console.error('Kategoriler yüklenirken hata:', response.error);
+            }
         } catch (error) {
             console.error('Kategoriler yüklenirken hata:', error);
         }
@@ -98,25 +97,17 @@ const ProductManagement = () => {
 
     const fetchProducts = async () => {
         try {
-            const { data, error } = await supabase
-                .from('products')
-                .select(`
-                    *,
-                    categories:category_id (
-                        id,
-                        name
-                    )
-                `)
-                .order('order_number', { ascending: true });
+            const response = await productService.getAll();
+            if (response.success) {
+                const formattedData = response.data?.map((product: Product) => ({
+                    ...product,
+                    images: Array.isArray(product.images) ? product.images : []
+                })) || [];
 
-            if (error) throw error;
-
-            const formattedData = data?.map((product: Product) => ({
-                ...product,
-                images: Array.isArray(product.images) ? product.images : []
-            })) || [];
-
-            setProducts(formattedData);
+                setProducts(formattedData);
+            } else {
+                console.error('Ürünler yüklenirken hata:', response.error);
+            }
         } catch (error) {
             console.error('Ürünler yüklenirken hata:', error);
         }
@@ -130,8 +121,8 @@ const ProductManagement = () => {
                 description: product.description,
                 price: product.price.toString(),
                 category_id: product.category_id,
-                images: product.images || [],
-                imageBase64Array: [],
+                imageFile: null,
+                imagePreview: product.images && product.images.length > 0 ? product.images[0] : '',
             });
         } else {
             setEditProduct(null);
@@ -140,8 +131,8 @@ const ProductManagement = () => {
                 description: '',
                 price: '',
                 category_id: '',
-                images: [],
-                imageBase64Array: [],
+                imageFile: null,
+                imagePreview: '',
             });
         }
         setOpen(true);
@@ -154,118 +145,83 @@ const ProductManagement = () => {
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        if (files) {
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64String = reader.result as string;
-                    setFormData(prev => ({
-                        ...prev,
-                        imageBase64Array: [...prev.imageBase64Array, base64String]
-                    }));
-                };
-                reader.readAsDataURL(file);
-            });
+        if (files && files[0]) {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormData({
+                    ...formData,
+                    imageFile: file,
+                    imagePreview: reader.result as string,
+                });
+            };
+            reader.readAsDataURL(file);
         }
     };
 
     const removeImage = (index: number) => {
-        const existingImagesLength = formData.images?.length || 0;
-
-        if (index < existingImagesLength) {
-            // Mevcut resmi sil
-            const updatedImages = formData.images?.filter((_, i) => i !== index) || [];
-            setFormData({ ...formData, images: updatedImages });
-        } else {
-            // Yeni yüklenen resmi sil
-            const newIndex = index - existingImagesLength;
-            const updatedImageBase64Array = formData.imageBase64Array.filter((_, i) => i !== newIndex);
-            setFormData({ ...formData, imageBase64Array: updatedImageBase64Array });
-        }
+        setFormData({
+            ...formData,
+            imageFile: null,
+            imagePreview: '',
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        try {
-            const productData = {
-                name: formData.name,
-                description: formData.description,
-                price: parseFloat(formData.price),
-                category_id: formData.category_id,
-                images: formData.images || [],
-            };
 
-            const { imageBase64Array } = formData;
-            let productId = editProduct?.id;
+        // Form validasyonu
+        const trimmedName = formData.name.trim();
+        const trimmedDescription = formData.description.trim();
+        const price = parseFloat(formData.price);
+
+        if (!trimmedName) {
+            alert('Ürün adı zorunludur');
+            return;
+        }
+
+        if (!formData.category_id) {
+            alert('Kategori seçimi zorunludur');
+            return;
+        }
+
+        if (isNaN(price) || price <= 0) {
+            alert('Geçerli bir fiyat giriniz');
+            return;
+        }
+
+        try {
+            const formDataToSend = new FormData();
+            formDataToSend.append('name', trimmedName);
+            formDataToSend.append('description', trimmedDescription);
+            formDataToSend.append('price', price.toString());
+            formDataToSend.append('category_id', formData.category_id);
+
+            // Eğer yeni bir resim yüklendiyse veya mevcut resim varsa
+            if (formData.imageFile) {
+                formDataToSend.append('image', formData.imageFile);
+            } else if (formData.imagePreview && editProduct) {
+                // Mevcut resmi koru
+                formDataToSend.append('images', JSON.stringify(editProduct.images));
+            }
 
             if (editProduct) {
-                const { error } = await supabase
-                    .from('products')
-                    .update({
-                        ...productData,
-                        order_number: editProduct.order_number
-                    })
-                    .eq('id', editProduct.id);
-                if (error) throw error;
-            } else {
-                // En yüksek order_number'ı bul
-                const { data: maxOrderData } = await supabase
-                    .from('products')
-                    .select('order_number')
-                    .order('order_number', { ascending: false })
-                    .limit(1);
-
-                const nextOrderNumber = maxOrderData && maxOrderData.length > 0
-                    ? maxOrderData[0].order_number + 1
-                    : 1;
-
-                const { data, error } = await supabase
-                    .from('products')
-                    .insert([{
-                        ...productData,
-                        order_number: nextOrderNumber
-                    }])
-                    .select();
-                if (error) throw error;
-                productId = data[0].id;
-            }
-
-            // Eğer yeni resimler varsa, doğrudan Supabase storage'a yükle
-            if (imageBase64Array.length > 0) {
-                const imageUrls: string[] = [...(formData.images || [])]; // Mevcut resimleri koru
-
-                for (const imageBase64 of imageBase64Array) {
-                    const base64Data = imageBase64.split(',')[1];
-                    const fileName = `product-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-
-                    const { error: uploadError } = await supabase
-                        .storage
-                        .from('product-images')
-                        .upload(fileName, base64ToUint8Array(base64Data), {
-                            contentType: 'image/jpeg'
-                        });
-
-                    if (uploadError) throw uploadError;
-
-                    const { data: { publicUrl } } = supabase
-                        .storage
-                        .from('product-images')
-                        .getPublicUrl(fileName);
-
-                    imageUrls.push(publicUrl);
+                const response = await productService.update(editProduct.id, formDataToSend);
+                if (response.success) {
+                    handleClose();
+                    fetchProducts();
+                } else {
+                    console.error('Ürün güncellenirken hata:', response.error);
                 }
-
-                // Ürünü yüklenen resim URL'leri ile güncelle
-                const { error: updateError } = await supabase
-                    .from('products')
-                    .update({ images: imageUrls })
-                    .eq('id', productId);
-
-                if (updateError) throw updateError;
+            } else {
+                const response = await productService.create(formDataToSend);
+                if (response.success) {
+                    handleClose();
+                    fetchProducts();
+                } else {
+                    console.error('Ürün eklenirken hata:', response.error);
+                }
             }
-
-            await fetchProducts(); // Ürünleri yeniden yükle
-            handleClose();
         } catch (error) {
             console.error('Ürün kaydedilirken hata:', error);
         }
@@ -274,12 +230,12 @@ const ProductManagement = () => {
     const handleDelete = async (id: string) => {
         if (window.confirm('Bu ürünü silmek istediğinizden emin misiniz?')) {
             try {
-                const { error } = await supabase
-                    .from('products')
-                    .delete()
-                    .eq('id', id);
-                if (error) throw error;
-                fetchProducts();
+                const response = await productService.delete(id);
+                if (response.success) {
+                    fetchProducts();
+                } else {
+                    console.error('Ürün silinirken hata:', response.error);
+                }
             } catch (error) {
                 console.error('Ürün silinirken hata:', error);
             }
@@ -289,44 +245,53 @@ const ProductManagement = () => {
     const handleDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
-        const sourceRowIndex = parseInt(result.source.droppableId.split('-')[1]);
-        const destinationRowIndex = parseInt(result.destination.droppableId.split('-')[1]);
-        const sourceIndex = sourceRowIndex * 4 + result.source.index;
-        const destinationIndex = destinationRowIndex * 4 + result.destination.index;
+        const items = Array.from(products);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
 
-        // Eğer pozisyon değişmemişse işlem yapma
-        if (sourceIndex === destinationIndex) return;
-
-        const newProducts = Array.from(products);
-        const [movedItem] = newProducts.splice(sourceIndex, 1);
-        newProducts.splice(destinationIndex, 0, movedItem);
-
-        // Önce UI'ı güncelle
-        setProducts(newProducts);
+        const updatedProducts = items.map((item, index) => ({
+            ...item,
+            order_number: index + 1
+        }));
 
         try {
-            // Sıralama numaralarını güncelle
-            const updates = newProducts.map((product, index) => ({
-                id: product.id,
-                name: product.name,
-                description: product.description,
-                price: product.price,
-                category_id: product.category_id,
-                images: product.images,
-                order_number: index + 1
+            setProducts(updatedProducts);
+
+            const orderData = updatedProducts.map(p => ({
+                id: p.id,
+                order_number: p.order_number
             }));
 
-            // Batch update için tüm güncellemeleri bir dizide topla
-            const { error } = await supabase
-                .from('products')
-                .upsert(updates);
+            const response = await productService.updateOrder(orderData);
 
-            if (error) throw error;
+            if (!response.success) {
+                console.error('Sıralama güncellenirken hata:', response.error);
+                await fetchProducts(); // Hata durumunda orijinal sıralamayı geri yükle
+            }
         } catch (error) {
-            console.error('Sıralama güncellenirken hata:', error);
-            // Hata durumunda orijinal listeyi geri yükle
-            fetchProducts();
+            console.error('Sıralama işlemi sırasında bir hata oluştu:', error);
+            await fetchProducts(); // Hata durumunda orijinal sıralamayı geri yükle
         }
+    };
+
+    // Helper function to convert base64 to Blob
+    const base64ToBlob = (base64: string, type: string): Blob => {
+        const byteCharacters = atob(base64);
+        const byteArrays = [];
+
+        for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+            const slice = byteCharacters.slice(offset, offset + 512);
+            const byteNumbers = new Array(slice.length);
+
+            for (let i = 0; i < slice.length; i++) {
+                byteNumbers[i] = slice.charCodeAt(i);
+            }
+
+            const byteArray = new Uint8Array(byteNumbers);
+            byteArrays.push(byteArray);
+        }
+
+        return new Blob(byteArrays, { type });
     };
 
     return (
@@ -555,7 +520,6 @@ const ProductManagement = () => {
                                 accept="image/*"
                                 style={{ display: 'none' }}
                                 id="image-upload"
-                                multiple
                                 type="file"
                                 onChange={handleImageChange}
                             />
@@ -567,12 +531,12 @@ const ProductManagement = () => {
                         </Box>
 
                         <Grid container spacing={2} sx={{ mt: 1 }}>
-                            {formData.images?.map((imageUrl, index) => (
-                                <Grid item xs={4} key={`existing-${index}`}>
+                            {formData.imagePreview && (
+                                <Grid item xs={4}>
                                     <Box sx={{ position: 'relative' }}>
                                         <img
-                                            src={imageUrl}
-                                            alt={`Mevcut ${index + 1}`}
+                                            src={formData.imagePreview}
+                                            alt="Önizleme"
                                             style={{
                                                 width: '100%',
                                                 height: '100px',
@@ -587,40 +551,13 @@ const ProductManagement = () => {
                                                 right: 0,
                                                 bgcolor: 'background.paper',
                                             }}
-                                            onClick={() => removeImage(index)}
+                                            onClick={() => removeImage(0)}
                                         >
                                             <DeleteIcon />
                                         </IconButton>
                                     </Box>
                                 </Grid>
-                            ))}
-                            {formData.imageBase64Array.map((image, index) => (
-                                <Grid item xs={4} key={`new-${index}`}>
-                                    <Box sx={{ position: 'relative' }}>
-                                        <img
-                                            src={image}
-                                            alt={`Yeni ${index + 1}`}
-                                            style={{
-                                                width: '100%',
-                                                height: '100px',
-                                                objectFit: 'cover',
-                                            }}
-                                        />
-                                        <IconButton
-                                            size="small"
-                                            sx={{
-                                                position: 'absolute',
-                                                top: 0,
-                                                right: 0,
-                                                bgcolor: 'background.paper',
-                                            }}
-                                            onClick={() => removeImage(formData.images?.length + index)}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </Box>
-                                </Grid>
-                            ))}
+                            )}
                         </Grid>
                     </Box>
                 </DialogContent>
