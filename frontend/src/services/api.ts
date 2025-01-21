@@ -27,6 +27,8 @@ api.interceptors.request.use(
             const token = localStorage.getItem('token');
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
+            } else {
+                console.warn('Token bulunamadı');
             }
         }
 
@@ -38,6 +40,7 @@ api.interceptors.request.use(
         return config;
     },
     (error) => {
+        console.error('Request interceptor error:', error);
         return Promise.reject(error);
     }
 );
@@ -48,20 +51,12 @@ api.interceptors.response.use(
         return response;
     },
     (error: AxiosError<ApiErrorResponse>) => {
-        // Visitor endpoint'leri için 401 kontrolü yapma
-        if (error.response?.status === 401 && !error.config?.url?.startsWith('/visitors')) {
+        if (error.response?.status === 401) {
+            // Token geçersiz veya eksik
             localStorage.removeItem('token');
             window.location.href = '/login';
         }
-
-        const errorMessage = error.response?.data?.error || error.message;
-        console.error('API Error:', errorMessage);
-
-        return Promise.reject({
-            success: false,
-            error: errorMessage,
-            details: error.response?.data?.details
-        });
+        return Promise.reject(error);
     }
 );
 

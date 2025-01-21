@@ -7,20 +7,20 @@ if (!supabaseUrl || !supabaseKey) {
     throw new Error('Supabase konfigürasyon değişkenleri eksik!');
 }
 
+console.log('Creating Supabase client with URL:', supabaseUrl);
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
-        flowType: 'pkce'
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+        storageKey: 'supabase.auth.token',
+        flowType: 'implicit'
     }
 });
 
-// Supabase auth değişikliklerini dinle
+// Debug için auth durumunu dinle
 supabase.auth.onAuthStateChange((event, session) => {
-    console.log('Auth durumu değişti:', { event, session });
-    if (session) {
-        // Auth header'ı güncelle
-        supabase.realtime.setAuth(session.access_token);
-    }
+    console.log('Supabase auth state changed:', { event, session });
 }); 

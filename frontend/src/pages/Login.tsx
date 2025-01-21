@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -7,29 +7,49 @@ import {
     TextField,
     Button,
     Alert,
+    CircularProgress,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, authState } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        console.log('Auth state in Login:', authState);
+        if (authState.isAuthenticated) {
+            console.log('User is authenticated, navigating to admin');
+            navigate('/admin');
+        }
+    }, [authState.isAuthenticated, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         setError(null);
-        setLoading(true);
+        setIsSubmitting(true);
 
         try {
+            console.log('Attempting login with email:', email);
             await login(email, password);
-            navigate('/admin');
+            console.log('Login successful');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Giriş başarısız');
-        } finally {
-            setLoading(false);
+            console.error('Login error in component:', err);
+            let errorMessage = 'Giriş başarısız';
+
+            if (err instanceof Error) {
+                errorMessage = err.message;
+            } else if (typeof err === 'string') {
+                errorMessage = err;
+            }
+
+            setError(errorMessage);
+            setIsSubmitting(false);
         }
     };
 
@@ -65,6 +85,8 @@ const Login = () => {
                         autoFocus
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        disabled={isSubmitting}
+                        error={!!error}
                     />
                     <TextField
                         margin="normal"
@@ -77,15 +99,21 @@ const Login = () => {
                         autoComplete="current-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        disabled={isSubmitting}
+                        error={!!error}
                     />
                     <Button
                         type="submit"
                         fullWidth
                         variant="contained"
-                        sx={{ mt: 3, mb: 2 }}
-                        disabled={loading}
+                        sx={{ mt: 3, mb: 2, height: 48 }}
+                        disabled={isSubmitting}
                     >
-                        {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+                        {isSubmitting ? (
+                            <CircularProgress size={24} color="inherit" />
+                        ) : (
+                            'Giriş Yap'
+                        )}
                     </Button>
                 </Box>
             </Box>
