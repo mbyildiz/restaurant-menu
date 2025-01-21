@@ -23,7 +23,11 @@ interface ApiErrorResponse {
 // Her istekte token'ı ekle
 api.interceptors.request.use(
     async (config) => {
-        if (!config.url?.startsWith('/visitors')) {
+        // Public endpoint'ler için token kontrolü yapma
+        const publicEndpoints = ['/visitors', '/categories', '/products', '/company'];
+        const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.startsWith(endpoint));
+
+        if (!isPublicEndpoint) {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) {
                 throw new Error('Aktif oturum bulunamadı');
