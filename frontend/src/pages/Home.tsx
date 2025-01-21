@@ -172,6 +172,29 @@ const Home = () => {
                     width: '100%'
                 }}
             >
+                {companyInfo?.banner_img && (
+                    <Box
+                        sx={{
+                            width: '100%',
+                            mb: 4,
+                            borderRadius: 2,
+                            overflow: 'hidden',
+                            boxShadow: 3,
+                            height: { xs: '200px', sm: '300px', md: '400px' }
+                        }}
+                    >
+                        <img
+                            src={companyInfo.banner_img}
+                            alt="Banner"
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover'
+                            }}
+                        />
+                    </Box>
+                )}
+
                 <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
                     <Box sx={{ textAlign: 'center', mb: 4 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 3 }}>

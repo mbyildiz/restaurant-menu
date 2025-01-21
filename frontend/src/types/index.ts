@@ -49,6 +49,7 @@ export interface CompanyInfo {
     logo_url?: string | null;
     qr_code?: string | null;
     maps?: string;
+    banner_img?: string | null;
 }
 
 // API Response Types
@@ -75,6 +76,7 @@ export interface ApiService {
         getInfo: () => Promise<ApiResponse<CompanyInfo>>;
         update: (data: Partial<CompanyInfo>) => Promise<ApiResponse<CompanyInfo>>;
         uploadLogo: (file: File) => Promise<{ success: boolean; url: string }>;
+        uploadBanner: (file: File) => Promise<{ success: boolean; url: string }>;
     };
     categories: {
         getAll: () => Promise<ApiResponse<Category[]>>;

@@ -154,6 +154,36 @@ export const company: ApiService['company'] = {
             console.error('Logo yükleme hatası:', error);
             throw error;
         }
+    },
+    uploadBanner: async (file: File) => {
+        try {
+            const timestamp = Date.now();
+            const fileName = `company-banner-${timestamp}${file.name.substring(file.name.lastIndexOf('.'))}`;
+
+            const { data, error } = await supabase.storage
+                .from('banner-img')
+                .upload(fileName, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (error) {
+                console.error('Banner yükleme hatası:', error);
+                throw error;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('banner-img')
+                .getPublicUrl(fileName);
+
+            return {
+                success: true,
+                url: publicUrl
+            };
+        } catch (error) {
+            console.error('Banner yükleme hatası:', error);
+            throw error;
+        }
     }
 };
 

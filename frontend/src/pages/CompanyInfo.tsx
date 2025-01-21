@@ -31,6 +31,7 @@ interface CompanyInfoForm {
     logo_url?: string;
     qr_code?: string;
     maps?: string;
+    banner_img?: string;
 }
 
 const CompanyInfo = () => {
@@ -42,6 +43,9 @@ const CompanyInfo = () => {
     const [logoPreview, setLogoPreview] = useState<string>('');
     const [companyInfo, setCompanyInfo] = useState<CompanyInfoForm | null>(null);
     const [storedLogo, setStoredLogo] = useState<string | null>(null);
+    const [bannerFile, setBannerFile] = useState<File | null>(null);
+    const [bannerPreview, setBannerPreview] = useState<string>('');
+    const [storedBanner, setStoredBanner] = useState<string | null>(null);
 
     const { register, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm<CompanyInfoForm>({
         defaultValues: {
@@ -147,6 +151,52 @@ const CompanyInfo = () => {
         }
     };
 
+    const handleBannerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files[0]) {
+            const file = event.target.files[0];
+
+            // Dosya boyutu kontrolü (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setError('Banner dosyası 5MB\'dan küçük olmalıdır');
+                return;
+            }
+
+            setBannerFile(file);
+            setError(null);
+
+            // Resim önizleme
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setBannerPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleBannerDelete = async () => {
+        if (!companyInfo?.banner_img || !window.confirm('Banner resmini silmek istediğinizden emin misiniz?')) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError(null);
+
+            // Firma bilgilerini güncelle
+            await company.update({ banner_img: null });
+
+            setBannerPreview('');
+            setBannerFile(null);
+            setStoredBanner(null);
+            setSuccess('Banner başarıyla silindi');
+        } catch (error: any) {
+            console.error('Banner silme işlemi hatası:', error);
+            setError(error.message || 'Banner silinirken bir hata oluştu');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const generateQRCode = async (websiteUrl: string): Promise<string> => {
         try {
             const qrDataUrl = await QRCode.toDataURL(websiteUrl);
@@ -171,6 +221,7 @@ const CompanyInfo = () => {
             }
 
             let logoUrl = null;
+            let bannerUrl = null;
             let qrCodeUrl = null;
 
             if (data.website) {
@@ -197,6 +248,21 @@ const CompanyInfo = () => {
                 }
             }
 
+            if (bannerFile) {
+                try {
+                    const uploadResponse = await company.uploadBanner(bannerFile);
+                    bannerUrl = uploadResponse.url;
+                } catch (error: any) {
+                    if (error.response?.status === 401) {
+                        setError('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
+                        window.location.href = '/login';
+                        return;
+                    }
+                    setError('Banner yüklenirken bir hata oluştu');
+                    return;
+                }
+            }
+
             // Firma bilgilerini güncelle
             const updateData = {
                 company_name: data.company_name,
@@ -206,6 +272,7 @@ const CompanyInfo = () => {
                 website: data.website,
                 social_media: data.social_media,
                 logo_url: logoUrl || storedLogo,
+                banner_img: bannerUrl || storedBanner,
                 qr_code: qrCodeUrl,
                 maps: data.maps,
                 updated_at: new Date().toISOString()
@@ -436,6 +503,55 @@ const CompanyInfo = () => {
                                             disabled={loading}
                                         >
                                             Logo Sil
+                                        </Button>
+                                    )}
+                                </Box>
+                            </Box>
+                        </Grid>
+
+                        <Grid item xs={12}>
+                            <Typography variant="h6" gutterBottom>
+                                Firma Bannerı
+                            </Typography>
+                            <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                {bannerPreview && (
+                                    <Box sx={{ mb: 2, width: '100%', maxWidth: 300 }}>
+                                        <CardMedia
+                                            component="img"
+                                            image={bannerPreview}
+                                            alt="Firma Bannerı"
+                                            sx={{
+                                                width: '100%',
+                                                height: 'auto',
+                                                maxHeight: 200,
+                                                objectFit: 'contain',
+                                                borderRadius: 1
+                                            }}
+                                        />
+                                    </Box>
+                                )}
+                                <Box sx={{ display: 'flex', gap: 2 }}>
+                                    <Button
+                                        variant="contained"
+                                        component="label"
+                                        disabled={loading}
+                                    >
+                                        Banner Seç
+                                        <input
+                                            type="file"
+                                            hidden
+                                            accept="image/*"
+                                            onChange={handleBannerChange}
+                                        />
+                                    </Button>
+                                    {bannerPreview && (
+                                        <Button
+                                            variant="outlined"
+                                            color="error"
+                                            onClick={handleBannerDelete}
+                                            disabled={loading}
+                                        >
+                                            Banner Sil
                                         </Button>
                                     )}
                                 </Box>
