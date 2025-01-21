@@ -313,11 +313,17 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         });
 
         const { id } = req.params;
-        const { name, description, price, category_id } = req.body;
+        const { name, description, price, category_id, images } = req.body;
         let existingImages: string[] = [];
 
+        console.log('1. Gelen ham images verisi:', images);
+        console.log('2. images verisi türü:', typeof images);
+
         try {
-            existingImages = JSON.parse(req.body.images || '[]');
+            existingImages = Array.isArray(images) ? images : JSON.parse(images || '[]');
+            console.log('3. Parse edilen mevcut resimler:', existingImages);
+            console.log('4. existingImages türü:', typeof existingImages);
+            console.log('5. existingImages bir array mi?', Array.isArray(existingImages));
         } catch (error) {
             console.error('Mevcut resimler parse edilirken hata:', error);
         }
@@ -338,103 +344,23 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        console.log('Mevcut ürün:', existingProduct);
+        console.log('6. Mevcut ürün:', existingProduct);
+        console.log('7. Mevcut ürünün resimleri:', existingProduct.images);
 
         const updateData: any = {
             name: name || existingProduct.name,
             price: price ? parseFloat(price) : existingProduct.price,
             description: description !== undefined ? description : existingProduct.description,
             category_id: category_id || existingProduct.category_id,
+            images: existingImages,
             updated_at: new Date().toISOString()
         };
 
-        if (req.files && typeof req.files === 'object' && 'image' in req.files) {
-            const image = req.files.image as UploadedFile;
-            console.log('Yeni yüklenen resim:', image.name, image.mimetype);
+        console.log('8. Güncellenecek veriler:', updateData);
+        console.log('9. Güncellenecek resimler:', updateData.images);
 
-            // Dosya tipi kontrolü
-            if (!image.mimetype.startsWith('image/')) {
-                console.log('Geçersiz dosya tipi:', image.mimetype);
-                res.status(400).json({
-                    success: false,
-                    error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
-                });
-                return;
-            }
-
-            // Eski resimleri sil
-            if (existingProduct.images && existingProduct.images.length > 0) {
-                try {
-                    for (const oldImageUrl of existingProduct.images) {
-                        const oldFileName = oldImageUrl.split('/product-images/').pop();
-                        if (oldFileName) {
-                            console.log('Silinecek eski resim:', oldFileName);
-                            const { error: deleteError } = await supabase.storage
-                                .from('product-images')
-                                .remove([oldFileName]);
-
-                            if (deleteError) {
-                                console.error('Eski resim silinirken hata:', deleteError);
-                                throw deleteError;
-                            }
-                            console.log('Eski resim başarıyla silindi');
-                        }
-                    }
-                } catch (error) {
-                    console.error('Eski resim silme hatası:', error);
-                }
-            }
-
-            // Yeni resmi yükle
-            const safeFileName = sanitizeFileName(image.name);
-            const fileName = `product-${Date.now()}-${safeFileName}`;
-            console.log('Yeni resim için oluşturulan dosya adı:', fileName);
-
-            try {
-                // Windows'ta dosya yolunu düzelt
-                const normalizedPath = path.normalize(image.tempFilePath);
-                console.log('Dosya yolu:', normalizedPath);
-
-                // Dosya boyutunu kontrol et
-                const stats = await fs.stat(normalizedPath);
-                console.log('Dosya boyutu:', stats.size);
-
-                // Dosyayı oku
-                const fileContent = await fs.readFile(normalizedPath);
-                console.log('Okunan dosya boyutu:', fileContent.length);
-
-                // Resmi yükle
-                const { data: uploadData, error: uploadError } = await supabase.storage
-                    .from('product-images')
-                    .upload(fileName, fileContent, {
-                        contentType: image.mimetype,
-                        upsert: true
-                    });
-
-                if (uploadError) {
-                    console.error('Resim yükleme hatası:', uploadError);
-                    throw uploadError;
-                }
-
-                console.log('Resim yükleme başarılı:', uploadData);
-
-                // Public URL'yi al
-                const { data: { publicUrl } } = supabase
-                    .storage
-                    .from('product-images')
-                    .getPublicUrl(fileName);
-
-                console.log('Oluşturulan public URL:', publicUrl);
-                updateData.images = [publicUrl];
-            } catch (error) {
-                console.error('Resim yükleme işlemi hatası:', error);
-                throw error;
-            }
-        }
-
-        console.log('Güncellenecek veriler:', updateData);
-
-        const { data, error: updateError, status } = await supabase
+        // SQL sorgusunu logla
+        const updateQuery = supabase
             .from('products')
             .update(updateData)
             .eq('id', id)
@@ -447,8 +373,10 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             `)
             .single();
 
+        const { data, error: updateError, status } = await updateQuery;
+
         if (updateError) {
-            console.error('Ürün güncellenirken hata:', updateError);
+            console.error('11. Ürün güncellenirken hata:', updateError);
             res.status(status || 400).json({
                 success: false,
                 error: updateError.message,
@@ -457,7 +385,9 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        console.log('Ürün başarıyla güncellendi:', data);
+        console.log('12. Güncelleme sonrası dönen veri:', data);
+        console.log('13. Güncelleme sonrası resimler:', data.images);
+
         res.status(200).json({
             success: true,
             data: data

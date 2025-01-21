@@ -86,13 +86,13 @@ export interface ApiService {
         getAll: () => Promise<ApiResponse<Product[]>>;
         getById: (id: string) => Promise<ApiResponse<Product>>;
         getByCategory: (categoryId: string) => Promise<ApiResponse<Product[]>>;
-        create: (data: FormData) => Promise<ApiResponse<Product>>;
-        update: (id: string, data: FormData) => Promise<ApiResponse<Product>>;
+        create: (data: Partial<Product>) => Promise<ApiResponse<Product>>;
+        update: (id: string, data: Partial<Product>) => Promise<ApiResponse<Product>>;
         delete: (id: string) => Promise<ApiResponse<{ message: string }>>;
-        uploadImages: (productId: string, images: File[]) => Promise<ApiResponse<{ images: string[] }>>;
         updateOrder: (products: { id: string; order_number: number }[]) => Promise<ApiResponse<{ message: string }>>;
     };
     upload: {
-        image: (file: File) => Promise<ApiResponse<{ url: string }>>;
+        uploadFile: (file: File, fileName: string) => Promise<{ data: { path: string; publicUrl: string } | null; error: any }>;
+        uploadMultipleFiles: (files: File[]) => Promise<{ data: { urls: string[] } | null; error: any }>;
     };
 } 

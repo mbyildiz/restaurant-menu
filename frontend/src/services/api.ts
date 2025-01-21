@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { ApiService, ApiResponse } from '../types';
+import { ApiService, ApiResponse, Product } from '../types';
 import { supabase } from '../config/supabaseClient';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -169,12 +169,20 @@ export const products: ApiService['products'] = {
         const response = await api.get<ApiResponse<any[]>>(`/products/category/${categoryId}`);
         return response.data;
     },
-    create: async (data: FormData) => {
-        const response = await api.post<ApiResponse<any>>('/products', data);
+    create: async (data: Partial<Product>) => {
+        const response = await api.post<ApiResponse<any>>('/products', data, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         return response.data;
     },
-    update: async (id: string, data: FormData) => {
-        const response = await api.put<ApiResponse<any>>(`/products/${id}`, data);
+    update: async (id: string, data: Partial<Product>) => {
+        const response = await api.put<ApiResponse<any>>(`/products/${id}`, data, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         return response.data;
     },
     delete: async (id: string) => {
@@ -200,6 +208,69 @@ export const visitors: ApiService['visitors'] = {
     increment: async () => {
         const response = await api.post<ApiResponse<{ count: number }>>('/visitors/increment');
         return response.data;
+    }
+};
+
+// Upload service
+export const upload = {
+    uploadFile: async (file: File, fileName: string) => {
+        try {
+            // Dosya adını güvenli hale getir
+            const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const timestamp = Date.now();
+            const uniqueFileName = `${timestamp}-${safeFileName}`;
+
+            const { data, error } = await supabase.storage
+                .from('product-images') // Var olan bucket adı
+                .upload(uniqueFileName, file, { // Path'i basitleştirdim
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (error) {
+                console.error('Supabase yükleme hatası:', error);
+                throw error;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('product-images')
+                .getPublicUrl(uniqueFileName);
+
+            return {
+                data: {
+                    path: data.path,
+                    publicUrl
+                },
+                error: null
+            };
+        } catch (error) {
+            console.error('Dosya yükleme hatası:', error);
+            return { data: null, error };
+        }
+    },
+
+    uploadMultipleFiles: async (files: File[]) => {
+        try {
+            const uploadPromises = files.map(async (file) => {
+                const result = await upload.uploadFile(file, file.name);
+                if (result.error) {
+                    console.error('Dosya yükleme hatası:', result.error);
+                    return undefined;
+                }
+                return result.data?.publicUrl;
+            });
+
+            const urls = await Promise.all(uploadPromises);
+            return {
+                data: {
+                    urls: urls.filter(url => url !== undefined)
+                },
+                error: null
+            };
+        } catch (error) {
+            console.error('Çoklu dosya yükleme hatası:', error);
+            return { data: null, error };
+        }
     }
 };
 

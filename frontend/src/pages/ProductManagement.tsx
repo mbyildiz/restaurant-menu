@@ -44,6 +44,15 @@ interface Category {
     name: string;
 }
 
+interface FormData {
+    name: string;
+    description: string;
+    price: string;
+    category_id: string;
+    imageFiles: File[];
+    imagePreviews: string[];
+}
+
 const base64ToUint8Array = (base64String: string): Uint8Array => {
     const binaryString = atob(base64String);
     const bytes = new Uint8Array(binaryString.length);
@@ -60,14 +69,15 @@ const ProductManagement = () => {
     const [open, setOpen] = useState(false);
     const [editProduct, setEditProduct] = useState<Product | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<FormData>({
         name: '',
         description: '',
         price: '',
         category_id: '',
-        imageFile: null as File | null,
-        imagePreview: '',
+        imageFiles: [],
+        imagePreviews: []
     });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         fetchProducts();
@@ -121,8 +131,8 @@ const ProductManagement = () => {
                 description: product.description,
                 price: product.price.toString(),
                 category_id: product.category_id,
-                imageFile: null,
-                imagePreview: product.images && product.images.length > 0 ? product.images[0] : '',
+                imageFiles: [],
+                imagePreviews: Array.isArray(product.images) ? product.images : []
             });
         } else {
             setEditProduct(null);
@@ -131,8 +141,8 @@ const ProductManagement = () => {
                 description: '',
                 price: '',
                 category_id: '',
-                imageFile: null,
-                imagePreview: '',
+                imageFiles: [],
+                imagePreviews: []
             });
         }
         setOpen(true);
@@ -144,31 +154,43 @@ const ProductManagement = () => {
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (files && files[0]) {
-            const file = files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setFormData({
-                    ...formData,
-                    imageFile: file,
-                    imagePreview: reader.result as string,
-                });
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            console.log('Seçilen dosya sayısı:', files.length);
+            const totalSize = files.reduce((acc, file) => acc + file.size, 0);
+            console.log('Toplam boyut:', totalSize / 1024 / 1024, 'MB');
 
-    const removeImage = (index: number) => {
-        setFormData({
-            ...formData,
-            imageFile: null,
-            imagePreview: '',
-        });
+            // Toplam boyut kontrolü (50MB)
+            if (totalSize > 50 * 1024 * 1024) {
+                alert('Toplam resim boyutu 50MB\'ı geçemez');
+                return;
+            }
+
+            // Her bir resim için önizleme oluştur
+            files.forEach(file => {
+                console.log('İşlenen dosya:', file.name, file.size / 1024, 'KB');
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFormData(prev => {
+                        console.log('Mevcut resim sayısı:', prev.imageFiles.length);
+                        const newState = {
+                            ...prev,
+                            imageFiles: [...prev.imageFiles, file],
+                            imagePreviews: [...prev.imagePreviews, reader.result as string]
+                        };
+                        console.log('Yeni resim sayısı:', newState.imageFiles.length);
+                        return newState;
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('Form gönderiliyor...');
+        console.log('Yüklenecek resim sayısı:', formData.imageFiles.length);
 
         // Form validasyonu
         const trimmedName = formData.name.trim();
@@ -191,22 +213,47 @@ const ProductManagement = () => {
         }
 
         try {
-            const formDataToSend = new FormData();
-            formDataToSend.append('name', trimmedName);
-            formDataToSend.append('description', trimmedDescription);
-            formDataToSend.append('price', price.toString());
-            formDataToSend.append('category_id', formData.category_id);
+            setLoading(true);
+            let imageUrls: string[] = [];
 
-            // Eğer yeni bir resim yüklendiyse veya mevcut resim varsa
-            if (formData.imageFile) {
-                formDataToSend.append('image', formData.imageFile);
-            } else if (formData.imagePreview && editProduct) {
-                // Mevcut resmi koru
-                formDataToSend.append('images', JSON.stringify(editProduct.images));
+            // Yeni yüklenen resimleri işle
+            if (formData.imageFiles.length > 0) {
+                console.log('Resimler yükleniyor...');
+                const uploadResult = await upload.uploadMultipleFiles(formData.imageFiles);
+                console.log('Yükleme sonucu:', uploadResult);
+                if (uploadResult.error) {
+                    throw new Error('Resimler yüklenirken hata oluştu');
+                }
+                imageUrls = uploadResult.data?.urls || [];
+                console.log('Yüklenen resim URL\'leri:', imageUrls);
             }
 
+            // Düzenleme modunda mevcut resimleri koru
             if (editProduct) {
-                const response = await productService.update(editProduct.id, formDataToSend);
+                console.log('Düzenleme modu - mevcut resimler korunuyor');
+                const existingImages = formData.imagePreviews.filter(preview =>
+                    !preview.startsWith('data:')
+                );
+                console.log('Mevcut resimler:', existingImages);
+                imageUrls = [...existingImages, ...imageUrls];
+            }
+
+            // Ürün bilgilerini gönder
+            const productData = {
+                name: trimmedName,
+                description: trimmedDescription,
+                price: price,
+                category_id: formData.category_id,
+                images: imageUrls
+            };
+            console.log('Frontend - Gönderilecek ürün verisi:', productData);
+            console.log('Frontend - images verisi türü:', typeof productData.images);
+            console.log('Frontend - images array mi?', Array.isArray(productData.images));
+            console.log('Frontend - images içeriği:', JSON.stringify(productData.images));
+
+            if (editProduct) {
+                const response = await productService.update(editProduct.id, productData);
+                console.log('Frontend - Güncelleme yanıtı:', response);
                 if (response.success) {
                     handleClose();
                     fetchProducts();
@@ -214,7 +261,8 @@ const ProductManagement = () => {
                     console.error('Ürün güncellenirken hata:', response.error);
                 }
             } else {
-                const response = await productService.create(formDataToSend);
+                const response = await productService.create(productData);
+                console.log('Oluşturma yanıtı:', response);
                 if (response.success) {
                     handleClose();
                     fetchProducts();
@@ -223,7 +271,10 @@ const ProductManagement = () => {
                 }
             }
         } catch (error) {
-            console.error('Ürün kaydedilirken hata:', error);
+            console.error('İşlem hatası:', error);
+            alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -292,6 +343,14 @@ const ProductManagement = () => {
         }
 
         return new Blob(byteArrays, { type });
+    };
+
+    const handleImageDelete = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            imageFiles: prev.imageFiles.filter((_, i) => i !== index),
+            imagePreviews: prev.imagePreviews.filter((_, i) => i !== index)
+        }));
     };
 
     return (
@@ -390,13 +449,27 @@ const ProductManagement = () => {
                                                                 }
                                                             }}
                                                         >
-                                                            {product.images && product.images.length > 0 && (
-                                                                <CardMedia
-                                                                    component="img"
-                                                                    height="200"
-                                                                    image={product.images[0]}
-                                                                    alt={product.name}
-                                                                />
+                                                            <CardMedia
+                                                                component="img"
+                                                                height="200"
+                                                                image={product.images && product.images.length > 0 ? product.images[0] : '/placeholder.png'}
+                                                                alt={product.name}
+                                                                sx={{ objectFit: 'cover' }}
+                                                            />
+                                                            {product.images && product.images.length > 1 && (
+                                                                <Box sx={{
+                                                                    position: 'absolute',
+                                                                    top: 10,
+                                                                    right: 10,
+                                                                    bgcolor: 'rgba(0, 0, 0, 0.6)',
+                                                                    color: 'white',
+                                                                    px: 1,
+                                                                    py: 0.5,
+                                                                    borderRadius: 1,
+                                                                    fontSize: '0.8rem'
+                                                                }}>
+                                                                    +{product.images.length - 1}
+                                                                </Box>
                                                             )}
                                                             <CardContent sx={{ flexGrow: 1 }}>
                                                                 <Typography gutterBottom variant="h6" component="div">
@@ -519,46 +592,51 @@ const ProductManagement = () => {
                             <input
                                 accept="image/*"
                                 style={{ display: 'none' }}
-                                id="image-upload"
+                                id="raised-button-file"
                                 type="file"
+                                multiple
                                 onChange={handleImageChange}
                             />
-                            <label htmlFor="image-upload">
+                            <label htmlFor="raised-button-file">
                                 <Button variant="contained" component="span">
                                     Resim Yükle
                                 </Button>
                             </label>
-                        </Box>
-
-                        <Grid container spacing={2} sx={{ mt: 1 }}>
-                            {formData.imagePreview && (
-                                <Grid item xs={4}>
-                                    <Box sx={{ position: 'relative' }}>
+                            <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+                                Birden fazla resim seçebilirsiniz (max 50MB toplam)
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2 }}>
+                                {formData.imagePreviews.map((preview, index) => (
+                                    <Box key={index} sx={{ position: 'relative', width: '150px' }}>
                                         <img
-                                            src={formData.imagePreview}
-                                            alt="Önizleme"
+                                            src={preview}
+                                            alt={`Önizleme ${index + 1}`}
                                             style={{
                                                 width: '100%',
-                                                height: '100px',
+                                                height: '150px',
                                                 objectFit: 'cover',
+                                                borderRadius: '4px'
                                             }}
                                         />
                                         <IconButton
-                                            size="small"
                                             sx={{
                                                 position: 'absolute',
-                                                top: 0,
-                                                right: 0,
+                                                top: 5,
+                                                right: 5,
                                                 bgcolor: 'background.paper',
+                                                '&:hover': {
+                                                    bgcolor: 'error.main',
+                                                    color: 'white'
+                                                }
                                             }}
-                                            onClick={() => removeImage(0)}
+                                            onClick={() => handleImageDelete(index)}
                                         >
                                             <DeleteIcon />
                                         </IconButton>
                                     </Box>
-                                </Grid>
-                            )}
-                        </Grid>
+                                ))}
+                            </Box>
+                        </Box>
                     </Box>
                 </DialogContent>
                 <DialogActions>
