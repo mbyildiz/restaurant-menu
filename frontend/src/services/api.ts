@@ -26,8 +26,10 @@ api.interceptors.request.use(
         // Public endpoint'ler için token kontrolü yapma
         const publicEndpoints = ['/visitors', '/categories', '/products', '/company'];
         const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.startsWith(endpoint));
+        const isPublicMethod = config.method?.toLowerCase() === 'get';
 
-        if (!isPublicEndpoint) {
+        // Sadece GET istekleri için public erişime izin ver
+        if (!(isPublicEndpoint && isPublicMethod)) {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) {
                 throw new Error('Aktif oturum bulunamadı');
