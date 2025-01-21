@@ -265,7 +265,7 @@ const Home = () => {
                                 mb: 3
                             }}
                         >
-                            {companyInfo?.company_name ? `${companyInfo.company_name} Dijital Menü` : 'Dijital Menü'}
+                            {companyInfo?.company_name ? `${companyInfo.company_name}` : 'Dijital Menü'}
                         </Typography>
                     </Box>
                 </Container>
