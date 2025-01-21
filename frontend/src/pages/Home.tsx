@@ -73,8 +73,16 @@ const Home = () => {
     const fetchCategories = async () => {
         try {
             setCategoriesLoading(true);
-            const data = await categoryApi.getAll();
-            const formattedData = data?.map((category: Category) => {
+            const response = await categoryApi.getAll();
+            const data = response.data;
+
+            if (!Array.isArray(data)) {
+                console.error('Kategori verisi dizi formatında değil:', data);
+                setCategories([]);
+                return;
+            }
+
+            const formattedData = data.map((category: Category) => {
                 let imageUrl = null;
                 if (category.image && typeof category.image === 'string') {
                     try {
@@ -89,11 +97,14 @@ const Home = () => {
                     ...category,
                     image: imageUrl
                 };
-            }) || [];
+            });
 
-            setCategories(formattedData);
+            // Kategorileri order_number'a göre sırala
+            const sortedData = formattedData.sort((a, b) => (a.order_number || 0) - (b.order_number || 0));
+            setCategories(sortedData);
         } catch (error) {
-            // Hata durumunda sessizce devam et
+            console.error('Kategoriler yüklenirken hata:', error);
+            setCategories([]);
         } finally {
             setCategoriesLoading(false);
         }
@@ -101,8 +112,16 @@ const Home = () => {
 
     const fetchProducts = async () => {
         try {
-            const data = await productApi.getAll();
-            const formattedData = data?.map((product: Product) => {
+            const response = await productApi.getAll();
+            const data = response.data; // API yanıtının data özelliğini al
+
+            if (!Array.isArray(data)) {
+                console.error('Ürün verisi dizi formatında değil:', data);
+                setProducts([]);
+                return;
+            }
+
+            const formattedData = data.map((product: Product) => {
                 let formattedImages: string[] = [];
 
                 if (Array.isArray(product.images)) {
@@ -120,11 +139,12 @@ const Home = () => {
                     ...product,
                     images: formattedImages
                 };
-            }) || [];
+            });
 
             setProducts(formattedData);
         } catch (error) {
             console.error('Ürünler yüklenirken hata:', error);
+            setProducts([]);
         } finally {
             setLoading(false);
         }
