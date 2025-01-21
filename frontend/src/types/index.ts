@@ -40,6 +40,7 @@ export interface CompanyInfo {
     company_address: string;
     phone_number: string;
     website?: string;
+    whatsapp?: string;
     social_media: {
         facebook?: string;
         instagram?: string;

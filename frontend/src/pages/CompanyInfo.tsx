@@ -21,6 +21,7 @@ interface CompanyInfoForm {
     company_name: string;
     company_address: string;
     phone_number: string;
+    whatsapp?: string;
     website?: string;
     social_media: {
         facebook?: string;
@@ -47,6 +48,7 @@ const CompanyInfo = () => {
             company_name: '',
             company_address: '',
             phone_number: '',
+            whatsapp: '',
             website: '',
             social_media: {
                 facebook: '',
@@ -78,6 +80,7 @@ const CompanyInfo = () => {
                     company_name: data.company_name || '',
                     company_address: data.company_address || '',
                     phone_number: data.phone_number || '',
+                    whatsapp: data.whatsapp || '',
                     website: data.website || '',
                     social_media: data.social_media || {
                         facebook: '',
@@ -199,6 +202,7 @@ const CompanyInfo = () => {
                 company_name: data.company_name,
                 company_address: data.company_address,
                 phone_number: data.phone_number,
+                whatsapp: data.whatsapp,
                 website: data.website,
                 social_media: data.social_media,
                 logo_url: logoUrl || storedLogo,
@@ -292,7 +296,7 @@ const CompanyInfo = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                             <TextField
                                 fullWidth
                                 variant="outlined"
@@ -309,6 +313,25 @@ const CompanyInfo = () => {
                                 {...register('phone_number', { required: 'Telefon numarası gereklidir' })}
                                 error={!!errors.phone_number}
                                 helperText={errors.phone_number?.message}
+                            />
+                        </Grid>
+
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                fullWidth
+                                variant="outlined"
+                                label="WhatsApp Numarası"
+                                InputLabelProps={{
+                                    shrink: true,
+                                }}
+                                sx={{
+                                    '& .MuiInputLabel-root': {
+                                        background: '#fff',
+                                        padding: '0 8px',
+                                    }
+                                }}
+                                {...register('whatsapp')}
+                                helperText="Örnek: 905321234567 (Başında 90 olmalı)"
                             />
                         </Grid>
 

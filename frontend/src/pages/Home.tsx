@@ -174,13 +174,56 @@ const Home = () => {
             >
                 <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
                     <Box sx={{ textAlign: 'center', mb: 4 }}>
-                        {companyInfo?.logo_url && (
-                            <img
-                                src={companyInfo.logo_url}
-                                alt="Company Logo"
-                                style={{ maxWidth: '200px', marginBottom: '20px' }}
-                            />
-                        )}
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 3 }}>
+                            {companyInfo?.logo_url && (
+                                <img
+                                    src={companyInfo.logo_url}
+                                    alt="Company Logo"
+                                    style={{ maxWidth: '200px' }}
+                                />
+                            )}
+                            {companyInfo?.whatsapp && (
+                                <Link
+                                    href={`https://api.whatsapp.com/send?phone=${companyInfo.whatsapp.replace(/\D/g, '')}&text=Merhaba , Sipariş vermek istiyorum`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ textDecoration: 'none' }}
+                                >
+                                    <Box
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            bgcolor: '#25D366',
+                                            color: 'white',
+                                            px: 2,
+                                            py: 1,
+                                            borderRadius: 2,
+                                            transition: 'all 0.3s ease',
+                                            '&:hover': {
+                                                bgcolor: '#128C7E',
+                                                transform: 'scale(1.05)'
+                                            }
+                                        }}
+                                    >
+                                        <img
+                                            src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+                                            alt="WhatsApp"
+                                            style={{ width: '24px', height: '24px' }}
+                                        />
+                                        <Typography
+                                            variant="button"
+                                            sx={{
+                                                fontWeight: 'bold',
+                                                textTransform: 'none'
+                                            }}
+                                        >
+                                            WhatsApp ile Sipariş
+                                        </Typography>
+                                    </Box>
+                                </Link>
+                            )}
+                        </Box>
                         <Typography
                             variant="h3"
                             component="h1"
