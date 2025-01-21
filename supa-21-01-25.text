@@ -1,0 +1,295 @@
+-- Supabase Veritabanı ve Storage Kurulum Kodları
+
+-- 1. Storage Bucket'ları Oluşturma
+-- Supabase Dashboard > Storage > New Bucket
+-- Aşağıdaki bucket'ları oluşturun:
+-- - product-images (public)
+-- - category-images (public)
+-- - company-images (public)
+
+-- 2. Veritabanı Tabloları
+-- Önce mevcut tabloları temizle
+DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.categories CASCADE;
+DROP TABLE IF EXISTS public.options CASCADE;
+DROP TABLE IF EXISTS public.admins CASCADE;
+DROP TABLE IF EXISTS public.company_info CASCADE;
+
+-- Admins Tablosu
+CREATE TABLE public.admins (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Categories Tablosu
+CREATE TABLE public.categories (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL UNIQUE,
+    description text,
+    image text,
+    order_number integer DEFAULT 0,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Products Tablosu
+CREATE TABLE public.products (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL,
+    description text,
+    price decimal(10,2) NOT NULL,
+    category_id uuid REFERENCES public.categories(id) NOT NULL,
+    images text[] DEFAULT '{}'::text[],
+    order_number integer DEFAULT 0,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Options Tablosu
+CREATE TABLE public.options (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    product_id uuid REFERENCES public.products(id) NOT NULL,
+    name text NOT NULL,
+    price decimal(10,2) NOT NULL DEFAULT 0,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- Company Info Tablosu
+CREATE TABLE public.company_info (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_name text NOT NULL,
+    company_address text NOT NULL,
+    phone_number text NOT NULL,
+    website text,
+    social_media jsonb DEFAULT '{}'::jsonb,
+    logo_url text,
+    qr_code text,
+    maps text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- 3. RLS (Row Level Security) Politikaları
+
+-- Admins için RLS
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.admins
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable insert for authenticated users"
+ON public.admins
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Categories için RLS
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.categories
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.categories
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- Products için RLS
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.products
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.products
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- Options için RLS
+ALTER TABLE public.options ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.options
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.options
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- Company Info için RLS
+ALTER TABLE public.company_info ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users"
+ON public.company_info
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Enable write access for admins"
+ON public.company_info
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- 4. Storage Bucket Politikaları
+
+-- product-images bucket için politikalar
+CREATE POLICY "Enable read access for all users"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'product-images');
+
+CREATE POLICY "Enable write access for admins"
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'product-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Enable delete access for admins"
+ON storage.objects FOR DELETE
+USING (
+    bucket_id = 'product-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- category-images bucket için politikalar
+CREATE POLICY "Enable read access for all users"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'category-images');
+
+CREATE POLICY "Enable write access for admins"
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'category-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Enable delete access for admins"
+ON storage.objects FOR DELETE
+USING (
+    bucket_id = 'category-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- company-images bucket için politikalar
+CREATE POLICY "Enable read access for all users"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'company-images');
+
+CREATE POLICY "Enable write access for admins"
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'company-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Enable delete access for admins"
+ON storage.objects FOR DELETE
+USING (
+    bucket_id = 'company-images' AND
+    EXISTS (
+        SELECT 1
+        FROM public.admins
+        WHERE user_id = auth.uid()
+    )
+);
+
+-- 5. Trigger'lar
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Products için trigger
+CREATE TRIGGER update_products_updated_at
+    BEFORE UPDATE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Categories için trigger
+CREATE TRIGGER update_categories_updated_at
+    BEFORE UPDATE ON categories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Options için trigger
+CREATE TRIGGER update_options_updated_at
+    BEFORE UPDATE ON options
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Company Info için trigger
+CREATE TRIGGER update_company_info_updated_at
+    BEFORE UPDATE ON company_info
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- 6. Kurulum Sonrası Yapılacaklar
+/*
+1. Supabase projenizi oluşturun
+2. SQL editörüne bu dosyadaki kodları kopyalayıp çalıştırın
+3. Storage bölümünden bucket'ları oluşturun:
+   - product-images (public)
+   - category-images (public)
+   - company-images (public)
+4. Authentication > Settings > Email Templates bölümünden email şablonlarını özelleştirin
+5. Authentication > Settings > URL Configuration:
+   - Site URL: https://your-frontend-url.com
+   - Redirect URLs: https://your-frontend-url.com/*
+6. API Settings > API URL ve anon/service_role key'leri not alın
+7. .env dosyalarına Supabase URL ve API key'leri ekleyin
+*/ 
