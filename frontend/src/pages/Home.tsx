@@ -298,7 +298,7 @@ const Home = () => {
                                                 component="img"
                                                 image={category.image}
                                                 alt={category.name}
-                                                sx={{ height: 40, objectFit: 'contain', mb: 1 }}
+                                                sx={{ height: 75, objectFit: 'contain', mb: 1 }}
                                             />
                                         )}
                                         <Typography
