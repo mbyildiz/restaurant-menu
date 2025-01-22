@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express from 'express';
 import {
     getAllProducts,
     getProductsByCategory,
@@ -9,7 +9,7 @@ import {
 } from '../controllers/productController';
 import { authenticateUser } from '../middleware/auth';
 
-const router = Router();
+const router = express.Router();
 
 // Public routes
 router.get('/', getAllProducts);
