@@ -36,19 +36,20 @@ app.use(hpp({
     whitelist: ['price', 'rating', 'limit', 'page'] // izin verilen duplicate parametreler
 }));
 
-// FRONTEND_URL için tip güvenli tanımlama
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+// CORS ayarları
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
 
-// CORS ayarları için tip güvenli tanımlama
-const corsOptions = {
-    origin: FRONTEND_URL,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'apikey'],
-    credentials: true
-};
-
-// CORS middleware'i uygula
-app.use(cors(corsOptions));
+app.use(cors({
+    origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
 
 // Middleware
 app.use(express.json());
@@ -83,29 +84,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     });
 });
 
-// Port tanımlaması için tip güvenli yaklaşım
+// Port ve host yapılandırması
 const PORT: number = parseInt(process.env.PORT || '3001', 10);
-const HOST: string = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
-
-// Eğer çoklu origin desteği gerekiyorsa:
-const allowedOrigins: string[] = process.env.ALLOWED_ORIGINS ? 
-    process.env.ALLOWED_ORIGINS.split(',') : 
-    [FRONTEND_URL];
-
-const corsOptionsWithMultipleOrigins = {
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('CORS policy violation'));
-        }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'apikey'],
-    credentials: true
-};
-
-app.use(cors(corsOptionsWithMultipleOrigins));
+const HOST: string = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
 
 // Vercel ve diğer ortamlar için uyumlu başlatma
 if (process.env.VERCEL) {
