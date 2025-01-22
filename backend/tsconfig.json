@@ -25,7 +25,8 @@
     "sourceMap": true,
     "declaration": true,
     "typeRoots": [
-      "./node_modules/@types"
+      "./node_modules/@types",
+      "./src/types"
     ],
     "strictPropertyInitialization": true
   },
