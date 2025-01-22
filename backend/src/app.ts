@@ -6,12 +6,12 @@ import fileUpload from 'express-fileupload';
 import xss from 'xss-clean';
 import hpp from 'hpp';
 import dotenv from 'dotenv';
-import { productRoutes } from './routes/productRoutes';
-import { authRoutes } from './routes/authRoutes';
-import { categoryRoutes } from './routes/categoryRoutes';
-import { companyRoutes } from './routes/companyRoutes';
-import { uploadRoutes } from './routes/uploadRoutes';
-import { visitorRoutes } from './routes/visitorRoutes';
+import productRoutes from './routes/productRoutes';
+import authRoutes from './routes/authRoutes';
+import categoryRoutes from './routes/categoryRoutes';
+import companyRoutes from './routes/companyRoutes';
+import uploadRoutes from './routes/uploadRoutes';
+import visitorRoutes from './routes/visitorRoutes';
 import { authenticateUser } from './middleware/auth';
 
 dotenv.config();
