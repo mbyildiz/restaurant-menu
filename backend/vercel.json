@@ -11,7 +11,7 @@
     ],
     "routes": [
         {
-            "src": "/(.*)",
+            "src": "/api/(.*)",
             "dest": "dist/app.js",
             "methods": [
                 "GET",
@@ -22,9 +22,17 @@
                 "OPTIONS"
             ],
             "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept, Authorization, apikey"
+                "Access-Control-Allow-Origin": "https://restaurantqr.vercel.app/",
+                "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept, Authorization, apikey",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "X-Frame-Options": "DENY",
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "no-referrer"
             }
+        },
+        {
+            "src": "/(.*)",
+            "dest": "dist/app.js"
         }
     ]
 }
