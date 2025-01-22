@@ -138,17 +138,10 @@ const CategoryManagement = () => {
 
             if (editCategory) {
                 formDataToSend.append('order_number', editCategory.order_number.toString());
-
-                console.log('Gönderilen form verileri:', {
-                    name: trimmedName,
-                    description: formData.description.trim(),
-                    order_number: editCategory.order_number,
-                    hasImage: !!formData.imageFile
-                });
-
+                
                 try {
                     const response = await categoriesApi.update(editCategory.id, formDataToSend);
-                    console.log('Kategori güncelleme yanıtı:', response);
+                    
 
                     if (response.success) {
                         // Başarılı güncelleme sonrası listeyi yenile
@@ -163,7 +156,7 @@ const CategoryManagement = () => {
             } else {
                 try {
                     const response = await categoriesApi.create(formDataToSend);
-                    console.log('Kategori oluşturma yanıtı:', response);
+                    
 
                     if (response.success) {
                         // Başarılı oluşturma sonrası listeyi yenile

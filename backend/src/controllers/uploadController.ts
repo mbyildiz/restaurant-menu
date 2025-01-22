@@ -22,19 +22,15 @@ const sanitizeFileName = (fileName: string): string => {
 
 export const uploadFile = async (req: Request, res: Response) => {
     try {
-        console.log('Gelen form verileri:', req.body);
-        console.log('Gelen dosyalar:', req.files);
-
         if (!req.files || !req.files.file) {
             throw new Error('Dosya bulunamadı');
         }
 
         const file = req.files.file as UploadedFile;
-        console.log('Yüklenen dosya:', file.name, file.mimetype);
 
         // Dosya tipi kontrolü
         if (!file.mimetype.startsWith('image/')) {
-            console.log('Geçersiz dosya tipi:', file.mimetype);
+
             throw new Error('Sadece resim dosyaları yüklenebilir');
         }
 
@@ -45,20 +41,19 @@ export const uploadFile = async (req: Request, res: Response) => {
 
         const safeFileName = sanitizeFileName(file.name);
         const fileName = `company-logo-${Date.now()}-${safeFileName}`;
-        console.log('Oluşturulan dosya adı:', fileName);
+
 
         try {
             // Windows'ta dosya yolunu düzelt
             const normalizedPath = path.normalize(file.tempFilePath);
-            console.log('Dosya yolu:', normalizedPath);
+
 
             // Dosya boyutunu kontrol et
             const stats = await fs.stat(normalizedPath);
-            console.log('Dosya boyutu:', stats.size);
+
 
             // Dosyayı oku
             const fileContent = await fs.readFile(normalizedPath);
-            console.log('Okunan dosya boyutu:', fileContent.length);
 
             // Resmi yükle
             const { data: uploadData, error: uploadError } = await adminSupabase.storage
@@ -73,15 +68,12 @@ export const uploadFile = async (req: Request, res: Response) => {
                 throw uploadError;
             }
 
-            console.log('Dosya yükleme başarılı:', uploadData);
+
 
             // Public URL'i al
             const { data: { publicUrl } } = adminSupabase.storage
                 .from('company-logos')
                 .getPublicUrl(fileName);
-
-            console.log('Oluşturulan public URL:', publicUrl);
-            console.log('Public URL tipi:', typeof publicUrl);
 
             // Yanıtı hazırla
             const response = {
@@ -91,8 +83,6 @@ export const uploadFile = async (req: Request, res: Response) => {
                     fileName: fileName
                 }
             };
-
-            console.log('Gönderilecek yanıt:', JSON.stringify(response, null, 2));
             res.status(200).json(response);
         } catch (error) {
             console.error('Dosya yükleme işlemi hatası:', error);

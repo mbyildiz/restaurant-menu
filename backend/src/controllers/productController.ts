@@ -179,8 +179,6 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
 // Yeni ürün ekle
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
     try {
-        console.log('Gelen form verileri:', req.body);
-        console.log('Gelen dosyalar:', req.files);
 
         const { name, description, price, category_id } = req.body;
 
@@ -197,11 +195,9 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 
         if (req.files && typeof req.files === 'object' && 'image' in req.files) {
             const image = req.files.image as UploadedFile;
-            console.log('Yüklenen resim:', image.name, image.mimetype);
 
             // Dosya tipi kontrolü
             if (!image.mimetype.startsWith('image/')) {
-                console.log('Geçersiz dosya tipi:', image.mimetype);
                 res.status(400).json({
                     success: false,
                     error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
@@ -211,20 +207,19 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 
             const safeFileName = sanitizeFileName(image.name);
             const fileName = `product-${Date.now()}-${safeFileName}`;
-            console.log('Oluşturulan dosya adı:', fileName);
 
             try {
                 // Windows'ta dosya yolunu düzelt
                 const normalizedPath = path.normalize(image.tempFilePath);
-                console.log('Dosya yolu:', normalizedPath);
+
 
                 // Dosya boyutunu kontrol et
                 const stats = await fs.stat(normalizedPath);
-                console.log('Dosya boyutu:', stats.size);
+
 
                 // Dosyayı oku
                 const fileContent = await fs.readFile(normalizedPath);
-                console.log('Okunan dosya boyutu:', fileContent.length);
+
 
                 // Resmi yükle
                 const { data: uploadData, error: uploadError } = await supabase.storage
@@ -239,7 +234,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
                     throw uploadError;
                 }
 
-                console.log('Resim yükleme başarılı:', uploadData);
+
 
                 // Public URL'yi al
                 const { data: { publicUrl } } = supabase
@@ -247,7 +242,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
                     .from('product-images')
                     .getPublicUrl(fileName);
 
-                console.log('Oluşturulan public URL:', publicUrl);
+
                 imageUrl = publicUrl;
             } catch (error) {
                 console.error('Resim yükleme işlemi hatası:', error);
@@ -265,7 +260,6 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
             updated_at: new Date().toISOString()
         };
 
-        console.log('Kaydedilecek ürün verileri:', productData);
 
         const { data, error, status } = await supabase
             .from('products')
@@ -289,7 +283,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        console.log('Ürün başarıyla kaydedildi:', data);
+
         res.status(201).json({
             success: true,
             data: data
@@ -306,24 +300,13 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 // Ürün güncelle
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
     try {
-        console.log('Güncelleme için gelen veriler:', {
-            params: req.params,
-            body: req.body,
-            files: req.files
-        });
-
         const { id } = req.params;
         const { name, description, price, category_id, images } = req.body;
         let existingImages: string[] = [];
 
-        console.log('1. Gelen ham images verisi:', images);
-        console.log('2. images verisi türü:', typeof images);
 
         try {
             existingImages = Array.isArray(images) ? images : JSON.parse(images || '[]');
-            console.log('3. Parse edilen mevcut resimler:', existingImages);
-            console.log('4. existingImages türü:', typeof existingImages);
-            console.log('5. existingImages bir array mi?', Array.isArray(existingImages));
         } catch (error) {
             console.error('Mevcut resimler parse edilirken hata:', error);
         }
@@ -344,8 +327,6 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        console.log('6. Mevcut ürün:', existingProduct);
-        console.log('7. Mevcut ürünün resimleri:', existingProduct.images);
 
         const updateData: any = {
             name: name || existingProduct.name,
@@ -356,8 +337,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             updated_at: new Date().toISOString()
         };
 
-        console.log('8. Güncellenecek veriler:', updateData);
-        console.log('9. Güncellenecek resimler:', updateData.images);
+
 
         // SQL sorgusunu logla
         const updateQuery = supabase
@@ -384,9 +364,6 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             });
             return;
         }
-
-        console.log('12. Güncelleme sonrası dönen veri:', data);
-        console.log('13. Güncelleme sonrası resimler:', data.images);
 
         res.status(200).json({
             success: true,

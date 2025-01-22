@@ -156,9 +156,9 @@ const ProductManagement = () => {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const files = Array.from(e.target.files);
-            console.log('Seçilen dosya sayısı:', files.length);
+
             const totalSize = files.reduce((acc, file) => acc + file.size, 0);
-            console.log('Toplam boyut:', totalSize / 1024 / 1024, 'MB');
+
 
             // Toplam boyut kontrolü (50MB)
             if (totalSize > 50 * 1024 * 1024) {
@@ -168,17 +168,17 @@ const ProductManagement = () => {
 
             // Her bir resim için önizleme oluştur
             files.forEach(file => {
-                console.log('İşlenen dosya:', file.name, file.size / 1024, 'KB');
+
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     setFormData(prev => {
-                        console.log('Mevcut resim sayısı:', prev.imageFiles.length);
+
                         const newState = {
                             ...prev,
                             imageFiles: [...prev.imageFiles, file],
                             imagePreviews: [...prev.imagePreviews, reader.result as string]
                         };
-                        console.log('Yeni resim sayısı:', newState.imageFiles.length);
+
                         return newState;
                     });
                 };
@@ -189,8 +189,7 @@ const ProductManagement = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('Form gönderiliyor...');
-        console.log('Yüklenecek resim sayısı:', formData.imageFiles.length);
+
 
         // Form validasyonu
         const trimmedName = formData.name.trim();
@@ -218,23 +217,18 @@ const ProductManagement = () => {
 
             // Yeni yüklenen resimleri işle
             if (formData.imageFiles.length > 0) {
-                console.log('Resimler yükleniyor...');
                 const uploadResult = await upload.uploadMultipleFiles(formData.imageFiles);
-                console.log('Yükleme sonucu:', uploadResult);
                 if (uploadResult.error) {
                     throw new Error('Resimler yüklenirken hata oluştu');
                 }
                 imageUrls = uploadResult.data?.urls || [];
-                console.log('Yüklenen resim URL\'leri:', imageUrls);
             }
 
             // Düzenleme modunda mevcut resimleri koru
             if (editProduct) {
-                console.log('Düzenleme modu - mevcut resimler korunuyor');
                 const existingImages = formData.imagePreviews.filter(preview =>
                     !preview.startsWith('data:')
                 );
-                console.log('Mevcut resimler:', existingImages);
                 imageUrls = [...existingImages, ...imageUrls];
             }
 
@@ -246,14 +240,9 @@ const ProductManagement = () => {
                 category_id: formData.category_id,
                 images: imageUrls
             };
-            console.log('Frontend - Gönderilecek ürün verisi:', productData);
-            console.log('Frontend - images verisi türü:', typeof productData.images);
-            console.log('Frontend - images array mi?', Array.isArray(productData.images));
-            console.log('Frontend - images içeriği:', JSON.stringify(productData.images));
 
             if (editProduct) {
                 const response = await productService.update(editProduct.id, productData);
-                console.log('Frontend - Güncelleme yanıtı:', response);
                 if (response.success) {
                     handleClose();
                     fetchProducts();
@@ -262,7 +251,6 @@ const ProductManagement = () => {
                 }
             } else {
                 const response = await productService.create(productData);
-                console.log('Oluşturma yanıtı:', response);
                 if (response.success) {
                     handleClose();
                     fetchProducts();

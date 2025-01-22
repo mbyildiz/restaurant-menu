@@ -96,13 +96,10 @@ const sanitizeFileName = (fileName: string): string => {
 // Yeni kategori ekle
 export const createCategory = async (req: Request, res: Response): Promise<void> => {
     try {
-        console.log('Gelen form verileri:', req.body);
-        console.log('Gelen dosyalar:', req.files);
-
         const { name, description, order_number } = req.body;
 
         if (!name) {
-            console.log('Kategori adı eksik');
+
             res.status(400).json({
                 success: false,
                 error: 'Kategori adı zorunludur'
@@ -114,11 +111,11 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
 
         if (req.files && typeof req.files === 'object' && 'image' in req.files) {
             const image = req.files.image as UploadedFile;
-            console.log('Yüklenen resim:', image.name, image.mimetype);
+
 
             // Dosya tipi kontrolü
             if (!image.mimetype.startsWith('image/')) {
-                console.log('Geçersiz dosya tipi:', image.mimetype);
+
                 res.status(400).json({
                     success: false,
                     error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
@@ -128,20 +125,19 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
 
             const safeFileName = sanitizeFileName(image.name);
             const fileName = `category-${Date.now()}-${safeFileName}`;
-            console.log('Oluşturulan dosya adı:', fileName);
+
 
             try {
                 // Windows'ta dosya yolunu düzelt
                 const normalizedPath = path.normalize(image.tempFilePath);
-                console.log('Dosya yolu:', normalizedPath);
+
 
                 // Dosya boyutunu kontrol et
                 const stats = await fs.stat(normalizedPath);
-                console.log('Dosya boyutu:', stats.size);
 
                 // Dosyayı oku
                 const fileContent = await fs.readFile(normalizedPath);
-                console.log('Okunan dosya boyutu:', fileContent.length);
+
 
                 // Resmi yükle
                 const { data: uploadData, error: uploadError } = await adminSupabase
@@ -157,7 +153,7 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
                     throw uploadError;
                 }
 
-                console.log('Resim yükleme başarılı:', uploadData);
+
 
                 // Public URL'yi al
                 const { data: { publicUrl } } = adminSupabase
@@ -165,7 +161,6 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
                     .from('category-images')
                     .getPublicUrl(fileName);
 
-                console.log('Oluşturulan public URL:', publicUrl);
                 imageUrl = publicUrl;
             } catch (error) {
                 console.error('Resim yükleme işlemi hatası:', error);
@@ -182,7 +177,7 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
             updated_at: new Date().toISOString()
         };
 
-        console.log('Kaydedilecek kategori verileri:', categoryData);
+
 
         const { data, error, status } = await adminSupabase
             .from('categories')
@@ -200,7 +195,7 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        console.log('Kategori başarıyla kaydedildi:', data);
+
         res.status(201).json({
             success: true,
             data: data
@@ -218,12 +213,6 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
 // Kategori güncelle
 export const updateCategory = async (req: Request, res: Response): Promise<void> => {
     try {
-        console.log('Güncelleme için gelen veriler:', {
-            params: req.params,
-            body: req.body,
-            files: req.files
-        });
-
         const { id } = req.params;
         const { name, description, order_number } = req.body;
 
@@ -243,8 +232,6 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        console.log('Mevcut kategori:', existingCategory);
-
         const updateData: any = {
             name: name || existingCategory.name,
             description: description !== undefined ? description : existingCategory.description,
@@ -254,11 +241,9 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
 
         if (req.files && typeof req.files === 'object' && 'image' in req.files) {
             const image = req.files.image as UploadedFile;
-            console.log('Yeni yüklenen resim:', image.name, image.mimetype);
 
             // Dosya tipi kontrolü
             if (!image.mimetype.startsWith('image/')) {
-                console.log('Geçersiz dosya tipi:', image.mimetype);
                 res.status(400).json({
                     success: false,
                     error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
@@ -271,7 +256,6 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
                 try {
                     const oldFileName = existingCategory.image.split('/category-images/').pop();
                     if (oldFileName) {
-                        console.log('Silinecek eski resim:', oldFileName);
                         const { error: deleteError } = await adminSupabase.storage
                             .from('category-images')
                             .remove([oldFileName]);
@@ -280,7 +264,6 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
                             console.error('Eski resim silinirken hata:', deleteError);
                             throw deleteError;
                         }
-                        console.log('Eski resim başarıyla silindi');
                     }
                 } catch (error) {
                     console.error('Eski resim silme hatası:', error);
@@ -290,20 +273,16 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
             // Yeni resmi yükle
             const safeFileName = sanitizeFileName(image.name);
             const fileName = `category-${Date.now()}-${safeFileName}`;
-            console.log('Yeni resim için oluşturulan dosya adı:', fileName);
 
             try {
                 // Windows'ta dosya yolunu düzelt
                 const normalizedPath = path.normalize(image.tempFilePath);
-                console.log('Dosya yolu:', normalizedPath);
 
                 // Dosya boyutunu kontrol et
                 const stats = await fs.stat(normalizedPath);
-                console.log('Dosya boyutu:', stats.size);
 
                 // Dosyayı oku
                 const fileContent = await fs.readFile(normalizedPath);
-                console.log('Okunan dosya boyutu:', fileContent.length);
 
                 // Resmi yükle
                 const { data: uploadData, error: uploadError } = await adminSupabase
@@ -319,23 +298,18 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
                     throw uploadError;
                 }
 
-                console.log('Resim yükleme başarılı:', uploadData);
 
                 // Public URL'yi al
                 const { data: { publicUrl } } = adminSupabase
                     .storage
                     .from('category-images')
                     .getPublicUrl(fileName);
-
-                console.log('Oluşturulan public URL:', publicUrl);
                 updateData.image = publicUrl;
             } catch (error) {
                 console.error('Resim yükleme işlemi hatası:', error);
                 throw error;
             }
         }
-
-        console.log('Güncellenecek veriler:', updateData);
 
         const { data, error: updateError, status } = await adminSupabase
             .from('categories')
@@ -353,8 +327,6 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
             });
             return;
         }
-
-        console.log('Kategori başarıyla güncellendi:', data);
         res.status(200).json({
             success: true,
             data: data
@@ -394,7 +366,6 @@ export const deleteCategory = async (req: Request, res: Response): Promise<void>
             try {
                 const fileName = category.image.split('/category-images/').pop();
                 if (fileName) {
-                    console.log('Silinecek resim:', fileName);
                     const { error: deleteError } = await adminSupabase.storage
                         .from('category-images')
                         .remove([fileName]);
@@ -403,7 +374,6 @@ export const deleteCategory = async (req: Request, res: Response): Promise<void>
                         console.error('Resim silinirken hata:', deleteError);
                         throw deleteError;
                     }
-                    console.log('Resim başarıyla silindi');
                 }
             } catch (error) {
                 console.error('Resim silme hatası:', error);

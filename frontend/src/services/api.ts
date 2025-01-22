@@ -23,20 +23,27 @@ interface ApiErrorResponse {
 // Her istekte token'ı ekle
 api.interceptors.request.use(
     async (config) => {
+
         // Public endpoint'ler için token kontrolü yapma
         const publicEndpoints = ['/visitors', '/categories', '/products', '/company'];
-        const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.startsWith(endpoint));
+        const isPublicEndpoint = publicEndpoints.some(endpoint =>
+            config.url?.includes(endpoint)
+        );
         const isPublicMethod = config.method?.toLowerCase() === 'get';
 
-        // Sadece GET istekleri için public erişime izin ver
-        if (!(isPublicEndpoint && isPublicMethod)) {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) {
-                throw new Error('Aktif oturum bulunamadı');
-            }
-            config.headers.Authorization = `Bearer ${session.access_token}`;
-            localStorage.setItem('token', session.access_token);
+
+        // Public endpoint ve GET isteği ise token ekleme
+        if (isPublicEndpoint && isPublicMethod) {
+            return config;
         }
+
+        // Diğer tüm istekler için token gerekli
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Aktif oturum bulunamadı');
+        }
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+        localStorage.setItem('token', session.access_token);
 
         // FormData için Content-Type header'ını ayarla
         if (config.data instanceof FormData) {
@@ -52,6 +59,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     async (error: AxiosError<ApiErrorResponse>) => {
+        // Public endpoint'ler için token kontrolü yapma
+        const publicEndpoints = ['/visitors', '/categories', '/products', '/company'];
+        const isPublicEndpoint = publicEndpoints.some(endpoint => error.config?.url?.startsWith(endpoint));
+        const isPublicMethod = error.config?.method?.toLowerCase() === 'get';
+
+        // Public endpoint ve GET isteği ise 401 hatasını yoksay
+        if (isPublicEndpoint && isPublicMethod) {
+            return Promise.reject(error);
+        }
+
         if (error.response?.status === 401) {
             // Session'ı kontrol et
             const { data: { session } } = await supabase.auth.getSession();

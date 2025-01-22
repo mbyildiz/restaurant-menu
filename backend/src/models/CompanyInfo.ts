@@ -26,16 +26,13 @@ export class CompanyInfoModel {
     }
 
     async create(companyInfo: CompanyInfo) {
-        console.log('=== Yeni Kayıt Oluşturuluyor ===');
-        console.log('1. Gelen veri:', JSON.stringify(companyInfo, null, 2));
-
         try {
-            // Zorunlu alanları kontrol et
+            //? Zorunlu alanları kontrol et
             if (!companyInfo.company_name || !companyInfo.company_address || !companyInfo.phone_number) {
                 throw new Error('Firma adı, adresi ve telefon numarası zorunludur');
             }
 
-            // Veriyi hazırla
+            //? Veriyi hazırla
             const newCompanyData = {
                 company_name: companyInfo.company_name.trim(),
                 company_address: companyInfo.company_address.trim(),
@@ -45,8 +42,6 @@ export class CompanyInfoModel {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
-
-            console.log('2. Kaydedilecek veri:', JSON.stringify(newCompanyData, null, 2));
 
             const { data, error } = await this.supabase
                 .from(this.tableName)
@@ -63,7 +58,6 @@ export class CompanyInfoModel {
                 throw new Error('Kayıt oluşturuldu ancak veri alınamadı');
             }
 
-            console.log('4. Kayıt başarılı:', JSON.stringify(data, null, 2));
             return data;
         } catch (error: any) {
             console.error('5. Hata:', error);
@@ -72,13 +66,6 @@ export class CompanyInfoModel {
     }
 
     async update(id: string, companyInfo: Partial<CompanyInfo>) {
-        console.log('=== Güncelleme İşlemi Başlıyor ===');
-        console.log('1. Gelen ID:', id);
-        console.log('2. Gelen veri:', {
-            ...companyInfo,
-            qr_code: companyInfo.qr_code ? 'QR Kod var (base64)' : 'QR Kod yok'
-        });
-
         const cleanId = id.trim();
 
         // ID kontrolü
@@ -99,11 +86,6 @@ export class CompanyInfoModel {
                 updated_at: new Date().toISOString()
             };
 
-            console.log('3. Güncellenecek veri:', {
-                ...updateData,
-                qr_code: updateData.qr_code ? 'QR Kod var (base64)' : 'QR Kod yok'
-            });
-
             const { data, error } = await this.supabase
                 .from(this.tableName)
                 .update(updateData)
@@ -120,10 +102,6 @@ export class CompanyInfoModel {
                 throw new Error('Güncelleme sonrası veri bulunamadı');
             }
 
-            console.log('5. Güncelleme başarılı:', {
-                ...data,
-                qr_code: data.qr_code ? 'QR Kod var (base64)' : 'QR Kod yok'
-            });
             return data;
         } catch (error: any) {
             console.error('6. Hata:', error);
@@ -132,8 +110,6 @@ export class CompanyInfoModel {
     }
 
     async getCompanyInfo() {
-        console.log('=== Firma Bilgileri Getiriliyor ===');
-
         try {
             const { data, error } = await this.supabase
                 .from(this.tableName)
@@ -152,12 +128,10 @@ export class CompanyInfoModel {
             }
 
             if (!data || data.length === 0) {
-                console.log('2. Firma bilgisi bulunamadı');
                 return null;
             }
 
-            console.log('3. Bulunan firma bilgileri:', JSON.stringify(data[0], null, 2));
-            console.log('=== Firma Bilgileri Getirildi ===');
+
             return data[0];
         } catch (error: any) {
             console.error('4. Beklenmeyen hata:', {
