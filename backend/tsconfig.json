@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es2016",
     "module": "commonjs",
+    "lib": ["es2017", "esnext.asynciterable"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -24,8 +25,13 @@
     "experimentalDecorators": true,
     "sourceMap": true,
     "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "typeRoots": [
-      "./node_modules/@types"
+      "./node_modules/@types",
+      "./src/types"
     ]
   },
   "include": [
@@ -33,6 +39,7 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.test.ts"
   ]
 }
