@@ -55,7 +55,7 @@ app.use(helmet({
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 dakika
-    max: 100 // her IP için 15 dakikada maksimum 100 istek
+    max: process.env.RATE_LIMIT ? parseInt(process.env.RATE_LIMIT) : 200, // her IP için 15 dakikada maksimum 100 istek
 });
 app.use(limiter);
 
