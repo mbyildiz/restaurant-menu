@@ -69,15 +69,12 @@ app.use(hpp({
 
 // CORS ayarları
 app.use(cors({
-    origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+    exposedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    maxAge: 86400 // CORS önbellek süresi - 24 saat
 }));
 
 // Middleware
@@ -103,7 +100,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/upload', authenticateUser, uploadRoutes);
-app.use('/api/visitors', authenticateUser, visitorRoutes);
+app.use('/api/visitors', visitorRoutes);
 app.use('/api/themes', themeRoutes);
 
 // Error handling

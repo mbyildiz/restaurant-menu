@@ -2,15 +2,15 @@ import axios, { AxiosError } from 'axios';
 import { ApiService, ApiResponse, Product } from '../types';
 import { supabase } from '../config/supabaseClient';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const api = axios.create({
     baseURL: API_URL,
-    withCredentials: false,
+    withCredentials: true,
     headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
+        'Content-Type': 'application/json'
+    },
+    timeout: 10000 // 10 saniye timeout
 });
 
 // API Yanıt Tipi
@@ -23,27 +23,39 @@ interface ApiErrorResponse {
 // Her istekte token'ı ekle
 api.interceptors.request.use(
     async (config) => {
-
         // Public endpoint'ler için token kontrolü yapma
-        const publicEndpoints = ['/visitors', '/categories', '/products', '/company'];
+        const publicEndpoints = [
+            '/visitors',
+            '/categories',
+            '/products',
+            '/company',
+            '/themes/active',
+            '/api/visitors',
+            '/api/categories',
+            '/api/products',
+            '/api/company',
+            '/api/themes/active'
+        ];
         const isPublicEndpoint = publicEndpoints.some(endpoint =>
             config.url?.includes(endpoint)
         );
         const isPublicMethod = config.method?.toLowerCase() === 'get';
-
 
         // Public endpoint ve GET isteği ise token ekleme
         if (isPublicEndpoint && isPublicMethod) {
             return config;
         }
 
-        // Diğer tüm istekler için token gerekli
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-            throw new Error('Aktif oturum bulunamadı');
+        try {
+            // Diğer tüm istekler için token gerekli
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+                config.headers.Authorization = `Bearer ${session.access_token}`;
+                localStorage.setItem('token', session.access_token);
+            }
+        } catch (error) {
+            console.error('Token alınırken hata:', error);
         }
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-        localStorage.setItem('token', session.access_token);
 
         // FormData için Content-Type header'ını ayarla
         if (config.data instanceof FormData) {
@@ -60,7 +72,18 @@ api.interceptors.response.use(
     (response) => response,
     async (error: AxiosError<ApiErrorResponse>) => {
         // Public endpoint'ler için token kontrolü yapma
-        const publicEndpoints = ['/visitors', '/categories', '/products', '/company'];
+        const publicEndpoints = [
+            '/visitors',
+            '/categories',
+            '/products',
+            '/company',
+            '/themes/active',
+            '/api/visitors',
+            '/api/categories',
+            '/api/products',
+            '/api/company',
+            '/api/themes/active'
+        ];
         const isPublicEndpoint = publicEndpoints.some(endpoint => error.config?.url?.startsWith(endpoint));
         const isPublicMethod = error.config?.method?.toLowerCase() === 'get';
 
@@ -70,14 +93,24 @@ api.interceptors.response.use(
         }
 
         if (error.response?.status === 401) {
-            // Session'ı kontrol et
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                // Session yoksa çıkış yap
-                await supabase.auth.signOut();
-                localStorage.removeItem('token');
-                window.location.href = '/login';
-                return Promise.reject(error);
+            try {
+                // Session'ı kontrol et
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    // Session yoksa çıkış yap
+                    await supabase.auth.signOut();
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+                } else {
+                    // Session varsa isteği tekrar dene
+                    const originalRequest = error.config;
+                    if (originalRequest && session.access_token) {
+                        originalRequest.headers.Authorization = `Bearer ${session.access_token}`;
+                        return axios(originalRequest);
+                    }
+                }
+            } catch (refreshError) {
+                console.error('Token yenileme hatası:', refreshError);
             }
         }
         return Promise.reject(error);

@@ -4,6 +4,9 @@ import { authenticateUser } from '../middleware/auth';
 
 const router = express.Router();
 
+// Aktif temayı getir
+router.get('/active', ThemeController.getActiveTheme);
+
 // Tema ayarlarını getir
 router.get('/:company_id', ThemeController.getThemeSettings);
 

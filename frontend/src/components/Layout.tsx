@@ -36,7 +36,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             width: '100%',
             overflow: 'hidden'
         }}>
-            <AppBar position="static" sx={{ width: '100%' }}>
+            <AppBar position="static" className="header" sx={{ width: '100%' }}>
                 <Container maxWidth={false} disableGutters>
                     <Toolbar sx={{ px: { xs: 2, sm: 3, md: 4 } }}>
                         <Typography
@@ -86,15 +86,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             <Box
                 component="footer"
+                className="footer"
                 sx={{
                     py: 3,
                     px: 2,
                     mt: 'auto',
                     width: '100%',
-                    backgroundColor: (theme) =>
-                        theme.palette.mode === 'light'
-                            ? theme.palette.grey[200]
-                            : theme.palette.grey[800],
                 }}
             >
                 <Container maxWidth={false}>

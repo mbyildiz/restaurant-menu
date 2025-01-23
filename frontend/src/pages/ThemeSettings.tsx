@@ -9,13 +9,15 @@ import {
     Button,
     TextField,
     Snackbar,
-    Alert
+    Alert,
+    useTheme
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import ColorSchemeSettings from '../components/theme/ColorSchemeSettings';
 import TypographySettings from '../components/theme/TypographySettings';
 import LayoutSettings from '../components/theme/LayoutSettings';
 import themeService, { ThemeSettings } from '../services/themeService';
+import api from '../services/api';
 
 interface TabPanelProps {
     children?: React.ReactNode;
@@ -49,6 +51,7 @@ const ThemeSettingsPage: React.FC = () => {
         message: '',
         severity: 'success' as 'success' | 'error'
     });
+    const theme = useTheme();
 
     useEffect(() => {
         if (companyId) {
@@ -76,9 +79,22 @@ const ThemeSettingsPage: React.FC = () => {
     };
 
     const handleColorChange = (colors: ThemeSettings['colors']) => {
-        if (themeSettings) {
-            setThemeSettings({ ...themeSettings, colors });
-        }
+        if (!themeSettings) return;
+
+        const updatedSettings = {
+            ...themeSettings,
+            colors
+        };
+        setThemeSettings(updatedSettings);
+
+        // Anlık önizleme için tema değişikliklerini uygula
+        document.documentElement.style.setProperty('--primary-color', colors.primary);
+        document.documentElement.style.setProperty('--secondary-color', colors.secondary);
+        document.documentElement.style.setProperty('--accent-color', colors.accent);
+        document.documentElement.style.setProperty('--background-color', colors.background);
+        document.documentElement.style.setProperty('--text-color', colors.text);
+        document.documentElement.style.setProperty('--header-bg', colors.header);
+        document.documentElement.style.setProperty('--footer-bg', colors.footer);
     };
 
     const handleTypographyChange = (typography: ThemeSettings['typography']) => {
@@ -94,62 +110,24 @@ const ThemeSettingsPage: React.FC = () => {
     };
 
     const handleSave = async () => {
+        if (!themeSettings) return;
+
         try {
-            if (!themeSettings) return;
-
-            if (!themeName.trim()) {
-                setSnackbar({
-                    open: true,
-                    message: 'Tema adı boş olamaz',
-                    severity: 'error'
-                });
-                return;
-            }
-
-            const updatedTheme = {
+            const updatedThemeSettings = {
                 ...themeSettings,
                 name: themeName
             };
-
-            console.log('Kaydetme işlemi başlatılıyor:', updatedTheme);
-
-            let response;
-            if (themeSettings.id) {
-                // Mevcut temayı güncelle
-                console.log('Mevcut tema güncelleniyor...');
-                response = await themeService.updateThemeSettings(companyId!, {
-                    id: themeSettings.id,
-                    ...updatedTheme
-                });
-            } else {
-                // Yeni tema oluştur
-                console.log('Yeni tema oluşturuluyor...');
-                response = await themeService.createThemeSettings(companyId!, updatedTheme);
-            }
-
-            console.log('İşlem başarılı:', response);
-            setThemeSettings(response);
+            await api.put(`/themes/${companyId}`, updatedThemeSettings);
             setSnackbar({
                 open: true,
                 message: 'Tema ayarları başarıyla kaydedildi',
                 severity: 'success'
             });
-        } catch (error: any) {
-            console.error('Tema ayarları kaydedilirken hata:', error);
-
-            let errorMessage = 'Tema ayarları kaydedilirken bir hata oluştu';
-            if (error.message) {
-                errorMessage = error.message;
-            }
-
-            let details = '';
-            if (error.details) {
-                details = typeof error.details === 'string' ? error.details : JSON.stringify(error.details);
-            }
-
+        } catch (error) {
+            console.error('Tema kaydedilirken hata:', error);
             setSnackbar({
                 open: true,
-                message: `${errorMessage}${details ? `\nDetay: ${details}` : ''}`,
+                message: 'Tema kaydedilirken bir hata oluştu',
                 severity: 'error'
             });
         }
