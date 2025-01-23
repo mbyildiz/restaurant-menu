@@ -39,3 +39,7 @@ ehthumbs.db
 Thumbs.db 
 theme_settings.md
 theme_settingsSQL.md
+.cursorRules
+.CursorRules
+*.cursorRules
+*.CursorRules
