@@ -93,7 +93,7 @@ app.use(fileUpload({
     safeFileNames: true,
     preserveExtension: true,
     abortOnLimit: true,
-    debug: process.env.NODE_ENV !== 'production'
+    debug: false
 }));
 
 // Routes
