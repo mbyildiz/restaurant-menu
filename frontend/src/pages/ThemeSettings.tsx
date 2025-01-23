@@ -18,6 +18,7 @@ import TypographySettings from '../components/theme/TypographySettings';
 import LayoutSettings from '../components/theme/LayoutSettings';
 import themeService, { ThemeSettings } from '../services/themeService';
 import api from '../services/api';
+import { useTheme as useAppTheme } from '../context/ThemeContext';
 
 interface TabPanelProps {
     children?: React.ReactNode;
@@ -51,7 +52,7 @@ const ThemeSettingsPage: React.FC = () => {
         message: '',
         severity: 'success' as 'success' | 'error'
     });
-    const theme = useTheme();
+    const { themeSettings: appThemeSettings, updateTheme } = useAppTheme();
 
     useEffect(() => {
         if (companyId) {
@@ -135,6 +136,17 @@ const ThemeSettingsPage: React.FC = () => {
 
     const handleCloseSnackbar = () => {
         setSnackbar({ ...snackbar, open: false });
+    };
+
+    const handleThemeUpdate = async (updatedTheme: ThemeSettings) => {
+        try {
+            const response = await themeService.updateThemeSettings(updatedTheme.company_id, updatedTheme);
+            updateTheme(response.data);
+            // Başarı mesajı göster
+        } catch (error) {
+            console.error('Tema güncellenirken hata:', error);
+            // Hata mesajı göster
+        }
     };
 
     if (!themeSettings) {

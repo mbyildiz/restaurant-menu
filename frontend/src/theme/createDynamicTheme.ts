@@ -42,8 +42,26 @@ export const createDynamicTheme = (themeSettings: ThemeSettings) => {
                 styleOverrides: {
                     root: {
                         backgroundColor: themeSettings.colors.header,
+                        color: themeSettings.colors.text,
                     },
                 },
+            },
+            MuiToolbar: {
+                styleOverrides: {
+                    root: {
+                        backgroundColor: themeSettings.colors.header,
+                    },
+                },
+            },
+            MuiPaper: {
+                variants: [
+                    {
+                        props: { variant: 'header' },
+                        style: {
+                            backgroundColor: themeSettings.colors.header,
+                        },
+                    },
+                ],
             },
         },
     });
