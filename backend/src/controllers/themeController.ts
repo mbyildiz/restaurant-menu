@@ -185,12 +185,19 @@ export const ThemeController = {
                 return res.status(400).json({ error: 'Tema ID zorunludur' });
             }
 
-            // Sadece gerekli alanları güncelle
+            // Tüm tema verilerini güncelle
             const updateData = {
                 name: themeData.name,
                 colors: themeData.colors,
                 typography: themeData.typography,
                 layout: themeData.layout,
+                components: themeData.components,
+                navigation: themeData.navigation,
+                animations: themeData.animations,
+                breakpoints: themeData.breakpoints,
+                branding: themeData.branding,
+                states: themeData.states,
+                social_media: themeData.social_media,
                 updated_at: new Date().toISOString()
             };
 

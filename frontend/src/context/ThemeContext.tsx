@@ -4,7 +4,7 @@ import api from '../services/api';
 
 interface ThemeContextType {
     themeSettings: ThemeSettings | null;
-    updateTheme: (newTheme: ThemeSettings) => void;
+    updateTheme: (newTheme: ThemeSettings) => Promise<void>;
     loading: boolean;
 }
 
@@ -25,7 +25,9 @@ export const ThemeContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const fetchActiveTheme = async () => {
         try {
             const response = await api.get('/themes/active');
-            setThemeSettings(response.data);
+            if (response.data) {
+                setThemeSettings(response.data);
+            }
         } catch (error) {
             console.error('Tema yüklenirken hata:', error);
         } finally {
@@ -37,8 +39,27 @@ export const ThemeContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
         fetchActiveTheme();
     }, []);
 
-    const updateTheme = (newTheme: ThemeSettings) => {
-        setThemeSettings(newTheme);
+    const updateTheme = async (newTheme: ThemeSettings) => {
+        try {
+            setLoading(true);
+            // Önce API'ye gönder
+            const response = await api.put(`/themes/${newTheme.company_id}`, newTheme);
+
+            if (response.data) {
+                // Başarılı olursa state'i güncelle
+                setThemeSettings(response.data);
+
+                // Aktif tema ise anında uygula
+                if (newTheme.is_active) {
+                    await fetchActiveTheme();
+                }
+            }
+        } catch (error) {
+            console.error('Tema güncellenirken hata:', error);
+            throw error;
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

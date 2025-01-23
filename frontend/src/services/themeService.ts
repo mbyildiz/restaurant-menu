@@ -1,10 +1,10 @@
 import api from './api';
 
 export interface ThemeSettings {
-    id: string;
-    company_id: string;
+    id?: string;
+    company_id?: string;
     name: string;
-    is_active: boolean;
+    is_active?: boolean;
     colors: {
         primary: string;
         secondary: string;
@@ -41,6 +41,25 @@ export interface ThemeSettings {
         sectionSpacing: string;
         gridGap: string;
         margin: string;
+    };
+    product_card: {
+        borderRadius: string;
+        padding: string;
+        backgroundColor: string;
+        shadowColor: string;
+        shadowSize: string;
+        imageHeight: string;
+        spacing: string;
+    };
+    product_grid: {
+        columns: {
+            xs: number;
+            sm: number;
+            md: number;
+            lg: number;
+        };
+        gap: string;
+        containerPadding: string;
     };
     components: {
         card: {

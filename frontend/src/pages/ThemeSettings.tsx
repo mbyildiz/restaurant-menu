@@ -10,7 +10,8 @@ import {
     TextField,
     Snackbar,
     Alert,
-    useTheme
+    useTheme,
+    CircularProgress
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import ColorSchemeSettings from '../components/theme/ColorSchemeSettings';
@@ -19,6 +20,10 @@ import LayoutSettings from '../components/theme/LayoutSettings';
 import themeService, { ThemeSettings } from '../services/themeService';
 import api from '../services/api';
 import { useTheme as useAppTheme } from '../context/ThemeContext';
+import { ProductCardSettings } from '../components/theme/ProductCardSettings';
+import { ProductGridSettings } from '../components/theme/ProductGridSettings';
+import { useThemeSettings } from '../hooks/useThemeSettings';
+import { toast } from 'react-hot-toast';
 
 interface TabPanelProps {
     children?: React.ReactNode;
@@ -45,14 +50,14 @@ function TabPanel(props: TabPanelProps) {
 const ThemeSettingsPage: React.FC = () => {
     const { companyId } = useParams<{ companyId: string }>();
     const [activeTab, setActiveTab] = useState(0);
-    const [themeName, setThemeName] = useState('');
-    const [themeSettings, setThemeSettings] = useState<ThemeSettings | null>(null);
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
         severity: 'success' as 'success' | 'error'
     });
     const { themeSettings: appThemeSettings, updateTheme } = useAppTheme();
+    const { settings, loading, error, updateSettings, saveSettings } = useThemeSettings();
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (companyId) {
@@ -63,8 +68,7 @@ const ThemeSettingsPage: React.FC = () => {
     const loadThemeSettings = async () => {
         try {
             const data = await themeService.getThemeSettings(companyId!);
-            setThemeSettings(data);
-            setThemeName(data.name);
+            updateSettings(data);
         } catch (error) {
             console.error('Tema ayarları yüklenirken hata:', error);
             setSnackbar({
@@ -80,13 +84,7 @@ const ThemeSettingsPage: React.FC = () => {
     };
 
     const handleColorChange = (colors: ThemeSettings['colors']) => {
-        if (!themeSettings) return;
-
-        const updatedSettings = {
-            ...themeSettings,
-            colors
-        };
-        setThemeSettings(updatedSettings);
+        updateSettings({ colors });
 
         // Anlık önizleme için tema değişikliklerini uygula
         document.documentElement.style.setProperty('--primary-color', colors.primary);
@@ -99,26 +97,29 @@ const ThemeSettingsPage: React.FC = () => {
     };
 
     const handleTypographyChange = (typography: ThemeSettings['typography']) => {
-        if (themeSettings) {
-            setThemeSettings({ ...themeSettings, typography });
-        }
+        updateSettings({ typography });
     };
 
     const handleLayoutChange = (layout: ThemeSettings['layout']) => {
-        if (themeSettings) {
-            setThemeSettings({ ...themeSettings, layout });
-        }
+        updateSettings({ layout });
     };
 
     const handleSave = async () => {
-        if (!themeSettings) return;
+        if (!settings) return;
 
         try {
-            const updatedThemeSettings = {
-                ...themeSettings,
-                name: themeName
-            };
-            await api.put(`/themes/${companyId}`, updatedThemeSettings);
+            setIsLoading(true);
+            // Önce ayarları kaydet
+            const savedSettings = await saveSettings();
+
+            // Sonra temayı güncelle
+            if (updateTheme && savedSettings) {
+                await updateTheme({
+                    ...savedSettings,
+                    is_active: true // Aktif tema olarak işaretle
+                });
+            }
+
             setSnackbar({
                 open: true,
                 message: 'Tema ayarları başarıyla kaydedildi',
@@ -131,6 +132,8 @@ const ThemeSettingsPage: React.FC = () => {
                 message: 'Tema kaydedilirken bir hata oluştu',
                 severity: 'error'
             });
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -140,19 +143,26 @@ const ThemeSettingsPage: React.FC = () => {
 
     const handleThemeUpdate = async (updatedTheme: ThemeSettings) => {
         try {
-            const response = await themeService.updateThemeSettings(updatedTheme.company_id, updatedTheme);
-            updateTheme(response.data);
-            // Başarı mesajı göster
+            setIsLoading(true);
+            await updateTheme({
+                ...updatedTheme,
+                is_active: true // Aktif tema olarak işaretle
+            });
+            toast.success('Tema başarıyla güncellendi');
         } catch (error) {
             console.error('Tema güncellenirken hata:', error);
-            // Hata mesajı göster
+            toast.error('Tema güncellenirken bir hata oluştu');
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    if (!themeSettings) {
+    if (loading || !settings) {
         return (
             <Container>
-                <Typography>Yükleniyor...</Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                    <CircularProgress />
+                </Box>
             </Container>
         );
     }
@@ -167,45 +177,58 @@ const ThemeSettingsPage: React.FC = () => {
                     <TextField
                         fullWidth
                         label="Tema Adı"
-                        value={themeName}
-                        onChange={(e) => setThemeName(e.target.value)}
+                        value={settings.name || ''}
+                        onChange={(e) => updateSettings({ name: e.target.value })}
                         sx={{ mb: 2 }}
                     />
                     <Tabs value={activeTab} onChange={handleTabChange}>
                         <Tab label="Renk Şeması" />
                         <Tab label="Tipografi" />
                         <Tab label="Düzen" />
-                        {/* Diğer sekmeler buraya eklenecek */}
+                        <Tab label="Ürün Kartı" />
+                        <Tab label="Ürün Gridi" />
                     </Tabs>
                 </Box>
 
                 <TabPanel value={activeTab} index={0}>
                     <ColorSchemeSettings
-                        colors={themeSettings.colors}
+                        colors={settings.colors}
                         onChange={handleColorChange}
                     />
                 </TabPanel>
                 <TabPanel value={activeTab} index={1}>
                     <TypographySettings
-                        typography={themeSettings.typography}
+                        typography={settings.typography}
                         onChange={handleTypographyChange}
                     />
                 </TabPanel>
                 <TabPanel value={activeTab} index={2}>
                     <LayoutSettings
-                        layout={themeSettings.layout}
+                        layout={settings.layout}
                         onChange={handleLayoutChange}
                     />
                 </TabPanel>
-                {/* Diğer sekme panelleri buraya eklenecek */}
+                <TabPanel value={activeTab} index={3}>
+                    <ProductCardSettings
+                        settings={settings}
+                        onUpdate={updateSettings}
+                    />
+                </TabPanel>
+                <TabPanel value={activeTab} index={4}>
+                    <ProductGridSettings
+                        settings={settings}
+                        onUpdate={updateSettings}
+                    />
+                </TabPanel>
 
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                     <Button
                         variant="contained"
                         color="primary"
                         onClick={handleSave}
+                        disabled={isLoading}
                     >
-                        Kaydet
+                        Değişiklikleri Kaydet
                     </Button>
                 </Box>
             </Paper>
