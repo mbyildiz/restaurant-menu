@@ -5,14 +5,19 @@ import CategoryIcon from '@mui/icons-material/Category';
 import BusinessIcon from '@mui/icons-material/Business';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import PeopleIcon from '@mui/icons-material/People';
+import PaletteIcon from '@mui/icons-material/Palette';
 import { supabase } from '../config/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
+    const { authState } = useAuth();
     const [visitorCount, setVisitorCount] = useState(0);
+    const [companyId, setCompanyId] = useState<string | null>(null);
 
     useEffect(() => {
         getVisitorCount();
+        getCompanyId();
     }, []);
 
     const getVisitorCount = async () => {
@@ -29,6 +34,25 @@ const AdminDashboard = () => {
             }
         } catch (error) {
             // Hata durumunda sessizce devam et
+        }
+    };
+
+    const getCompanyId = async () => {
+        try {
+            if (!authState.user) return;
+
+            const { data, error } = await supabase
+                .from('companies')
+                .select('id')
+                .single();
+
+            if (error) throw error;
+
+            if (data) {
+                setCompanyId(data.id);
+            }
+        } catch (error) {
+            console.error('Firma ID alınırken hata:', error);
         }
     };
 
@@ -50,6 +74,13 @@ const AdminDashboard = () => {
             description: 'Firma bilgilerini düzenle',
             icon: <BusinessIcon sx={{ fontSize: 40 }} />,
             path: '/admin/company'
+        },
+        {
+            title: 'Tema Ayarları',
+            description: 'Tema renklerini ve stillerini özelleştir',
+            icon: <PaletteIcon sx={{ fontSize: 40 }} />,
+            path: `/admin/themes/${companyId}`,
+            disabled: !companyId
         }
     ];
 
@@ -66,12 +97,13 @@ const AdminDashboard = () => {
                                 height: '100%',
                                 display: 'flex',
                                 flexDirection: 'column',
+                                opacity: item.disabled ? 0.5 : 1,
                                 '&:hover': {
-                                    boxShadow: 6,
-                                    cursor: 'pointer'
+                                    boxShadow: item.disabled ? 0 : 6,
+                                    cursor: item.disabled ? 'not-allowed' : 'pointer'
                                 }
                             }}
-                            onClick={() => navigate(item.path)}
+                            onClick={() => !item.disabled && navigate(item.path)}
                         >
                             <CardContent sx={{ flexGrow: 1, textAlign: 'center' }}>
                                 {item.icon}

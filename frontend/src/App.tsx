@@ -9,6 +9,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import CategoryManagement from './pages/CategoryManagement';
 import ProductManagement from './pages/ProductManagement';
 import CompanyInfo from './pages/CompanyInfo';
+import ThemeSettings from './pages/ThemeSettings';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -50,6 +51,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <CompanyInfo />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/themes/:companyId"
+                element={
+                  <ProtectedRoute>
+                    <ThemeSettings />
                   </ProtectedRoute>
                 }
               />

@@ -12,6 +12,7 @@ import categoryRoutes from './routes/categoryRoutes';
 import companyRoutes from './routes/companyRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import visitorRoutes from './routes/visitorRoutes';
+import themeRoutes from './routes/themeRoutes';
 import { authenticateUser } from './middleware/auth';
 
 dotenv.config();
@@ -103,6 +104,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/upload', authenticateUser, uploadRoutes);
 app.use('/api/visitors', authenticateUser, visitorRoutes);
+app.use('/api/themes', themeRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

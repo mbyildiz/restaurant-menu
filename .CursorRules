@@ -104,3 +104,102 @@ USING (
 - Kullanıcı dostu hata mesajları gösterilir
 - Network hataları için retry mekanizması
 - Offline support için error boundary kullanımı
+
+# Tema Ayarları Katı Kuralları
+
+## Genel Yapı
+- Her tema ayarı bileşeni ayrı bir dosyada tutulmalı
+- Bileşenler `frontend/src/components/theme/` altında olmalı
+- Her bileşen kendi state'ini yönetmeli ve değişiklikleri üst bileşene iletmeli
+
+## Tema Ayarları Bileşenleri
+1. ColorSchemeSettings
+   - Ana renkler
+   - Sayfa renkleri
+   - Header/Footer renkleri
+   - Buton renkleri
+
+2. TypographySettings
+   - Font aileleri seçimi (önceden tanımlı fontlar)
+   - Font boyutları
+   - Başlık boyutları (h1-h6)
+   - Buton ve menü yazı boyutları
+
+3. LayoutSettings
+   - Sayfa maksimum genişliği
+   - Container padding
+   - Bölüm aralıkları
+   - Grid aralıkları
+   - Kenar boşlukları
+
+## Veri Yapısı
+- Tema ayarları Supabase'de `theme_settings` tablosunda saklanmalı
+- Her firma için birden fazla tema oluşturulabilmeli
+- Temalar arasında sadece biri aktif olabilmeli
+
+## Supabase Policy Yapısı
+```sql
+-- Tema ayarları için basit policy
+CREATE POLICY "theme_settings_update"
+ON public.theme_settings
+FOR UPDATE
+USING (true)
+WITH CHECK (true);
+
+-- RLS'i aktif et
+ALTER TABLE public.theme_settings ENABLE ROW LEVEL SECURITY;
+```
+
+## Backend Controller Yapısı
+- Tema güncellemesi için basit ve etkili yaklaşım:
+```typescript
+// Sadece gerekli alanları güncelle
+const updateData = {
+    name: themeData.name,
+    colors: themeData.colors,
+    typography: themeData.typography,
+    layout: themeData.layout,
+    updated_at: new Date().toISOString()
+};
+
+// Güncelleme işlemi
+const { data, error } = await supabase
+    .from('theme_settings')
+    .update(updateData)
+    .match({ id: id })
+    .select()
+    .single();
+```
+
+## Kullanıcı Arayüzü Standartları
+- Material-UI bileşenleri kullanılmalı
+- Renk seçimleri için native color picker kullanılmalı
+- Font seçimleri için dropdown menü kullanılmalı
+- Ölçü birimleri için text input kullanılmalı (px, rem, em, % destekli)
+
+## Tema Değişikliklerinin Uygulanması
+- Değişiklikler anlık olarak önizlenebilmeli
+- Kaydet butonu ile kalıcı hale getirilmeli
+- Hata durumlarında kullanıcıya bilgi verilmeli
+
+## Güvenlik
+- Tema ayarlarına erişim sadece yetkili kullanıcılar için olmalı
+- Her firma sadece kendi temalarını görebilmeli ve düzenleyebilmeli
+
+## Performans
+- Gereksiz render'ları önlemek için memoization kullanılmalı
+- Büyük veri değişikliklerinde debounce uygulanmalı
+- API çağrıları optimize edilmeli
+
+## Hata Yönetimi
+- Backend'de detaylı loglama yapılmalı
+- Frontend'de kullanıcı dostu hata mesajları gösterilmeli
+- Güncelleme işlemlerinde veri kontrolü yapılmalı
+- Başarısız işlemlerde otomatik geri alma mekanizması kullanılmalı
+
+## Veri Güncelleme Prensipleri
+1. Sadece değişen alanları gönder
+2. Gereksiz veri manipülasyonundan kaçın
+3. İşlem öncesi basit validasyonlar yap
+4. Her işlem sonrası veri tutarlılığını kontrol et
+5. Detaylı loglama ile hata tespitini kolaylaştır
