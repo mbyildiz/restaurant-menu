@@ -159,7 +159,6 @@ const ProductManagement = () => {
 
             const totalSize = files.reduce((acc, file) => acc + file.size, 0);
 
-
             // Toplam boyut kontrolü (50MB)
             if (totalSize > 50 * 1024 * 1024) {
                 alert('Toplam resim boyutu 50MB\'ı geçemez');
@@ -168,19 +167,13 @@ const ProductManagement = () => {
 
             // Her bir resim için önizleme oluştur
             files.forEach(file => {
-
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    setFormData(prev => {
-
-                        const newState = {
-                            ...prev,
-                            imageFiles: [...prev.imageFiles, file],
-                            imagePreviews: [...prev.imagePreviews, reader.result as string]
-                        };
-
-                        return newState;
-                    });
+                    setFormData(prev => ({
+                        ...prev,
+                        imageFiles: [...prev.imageFiles, file],
+                        imagePreviews: [...prev.imagePreviews, reader.result as string]
+                    }));
                 };
                 reader.readAsDataURL(file);
             });
@@ -189,7 +182,6 @@ const ProductManagement = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
 
         // Form validasyonu
         const trimmedName = formData.name.trim();
@@ -213,34 +205,40 @@ const ProductManagement = () => {
 
         try {
             setLoading(true);
-            let imageUrls: string[] = [];
+            let finalImageUrls: string[] = [];
 
-            // Yeni yüklenen resimleri işle
+            // 1. Önce yeni resimleri yükle
             if (formData.imageFiles.length > 0) {
+                console.log('Yeni resimler yükleniyor:', formData.imageFiles.length);
                 const uploadResult = await upload.uploadMultipleFiles(formData.imageFiles);
                 if (uploadResult.error) {
                     throw new Error('Resimler yüklenirken hata oluştu');
                 }
-                imageUrls = uploadResult.data?.urls || [];
+                if (uploadResult.data?.urls) {
+                    finalImageUrls = [...finalImageUrls, ...uploadResult.data.urls];
+                    console.log('Yüklenen resim URLleri:', uploadResult.data.urls);
+                }
             }
 
-            // Düzenleme modunda mevcut resimleri koru
-            if (editProduct) {
-                const existingImages = formData.imagePreviews.filter(preview =>
-                    !preview.startsWith('data:')
-                );
-                imageUrls = [...existingImages, ...imageUrls];
-            }
+            // 2. Mevcut resimleri ekle (sadece http/https URLleri)
+            const existingImageUrls = formData.imagePreviews.filter(preview =>
+                preview.startsWith('http://') || preview.startsWith('https://')
+            );
+            finalImageUrls = [...finalImageUrls, ...existingImageUrls];
+            console.log('Final resim URLleri:', finalImageUrls);
 
-            // Ürün bilgilerini gönder
+            // Ürün bilgilerini hazırla
             const productData = {
                 name: trimmedName,
                 description: trimmedDescription,
                 price: price,
                 category_id: formData.category_id,
-                images: imageUrls
+                images: finalImageUrls
             };
 
+            console.log('Gönderilecek ürün verisi:', productData);
+
+            // Ürünü oluştur veya güncelle
             if (editProduct) {
                 const response = await productService.update(editProduct.id, productData);
                 if (response.success) {
@@ -248,6 +246,7 @@ const ProductManagement = () => {
                     fetchProducts();
                 } else {
                     console.error('Ürün güncellenirken hata:', response.error);
+                    alert('Ürün güncellenirken hata oluştu');
                 }
             } else {
                 const response = await productService.create(productData);
@@ -256,6 +255,7 @@ const ProductManagement = () => {
                     fetchProducts();
                 } else {
                     console.error('Ürün eklenirken hata:', response.error);
+                    alert('Ürün eklenirken hata oluştu');
                 }
             }
         } catch (error) {
@@ -477,13 +477,13 @@ const ProductManagement = () => {
                                                                 <Button size="small" onClick={() => handleOpen(product)}>
                                                                     Düzenle
                                                                 </Button>
-                                                                <Button
+                                                                <IconButton
                                                                     size="small"
                                                                     color="error"
                                                                     onClick={() => handleDelete(product.id)}
                                                                 >
-                                                                    Sil
-                                                                </Button>
+                                                                    <DeleteIcon />
+                                                                </IconButton>
                                                             </CardActions>
                                                         </Card>
                                                     </Box>

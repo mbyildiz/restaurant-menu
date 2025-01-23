@@ -19,7 +19,37 @@ dotenv.config();
 const app: Express = express();
 
 // Güvenlik başlıkları
-app.use(helmet());
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:5173',
+    'http://localhost:3000'
+];
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'", ...allowedOrigins],
+            scriptSrc: ["'self'", "'unsafe-inline'", "*.google.com", "*.gstatic.com", ...allowedOrigins],
+            styleSrc: ["'self'", "'unsafe-inline'", "*.googleapis.com", ...allowedOrigins],
+            imgSrc: ["'self'", "data:", "https:", "*.google.com", "*.googleapis.com", "*.gstatic.com", ...allowedOrigins],
+            connectSrc: ["'self'", process.env.SUPABASE_URL || '', "*.google.com", ...allowedOrigins],
+            frameSrc: ["'self'", "*.google.com", "*.google.com.tr", ...allowedOrigins],
+            objectSrc: ["'none'"],
+            childSrc: ["*.google.com.tr", "*.gstatic.com", "*.google.com", ...allowedOrigins]
+        }
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    frameguard: {
+        action: 'sameorigin'
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -37,11 +67,6 @@ app.use(hpp({
 }));
 
 // CORS ayarları
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-    'http://localhost:5173',
-    'http://localhost:3000'
-];
-
 app.use(cors({
     origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         if (!origin || allowedOrigins.includes(origin)) {

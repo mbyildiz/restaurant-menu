@@ -179,8 +179,7 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
 // Yeni ürün ekle
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
     try {
-
-        const { name, description, price, category_id } = req.body;
+        const { name, description, price, category_id, images } = req.body;
 
         // Zorunlu alan kontrolleri
         if (!name || !price || !category_id) {
@@ -191,75 +190,16 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        let imageUrl: string | null = null;
-
-        if (req.files && typeof req.files === 'object' && 'image' in req.files) {
-            const image = req.files.image as UploadedFile;
-
-            // Dosya tipi kontrolü
-            if (!image.mimetype.startsWith('image/')) {
-                res.status(400).json({
-                    success: false,
-                    error: 'Geçersiz dosya tipi. Sadece resim dosyaları yüklenebilir.'
-                });
-                return;
-            }
-
-            const safeFileName = sanitizeFileName(image.name);
-            const fileName = `product-${Date.now()}-${safeFileName}`;
-
-            try {
-                // Windows'ta dosya yolunu düzelt
-                const normalizedPath = path.normalize(image.tempFilePath);
-
-
-                // Dosya boyutunu kontrol et
-                const stats = await fs.stat(normalizedPath);
-
-
-                // Dosyayı oku
-                const fileContent = await fs.readFile(normalizedPath);
-
-
-                // Resmi yükle
-                const { data: uploadData, error: uploadError } = await supabase.storage
-                    .from('product-images')
-                    .upload(fileName, fileContent, {
-                        contentType: image.mimetype,
-                        upsert: true
-                    });
-
-                if (uploadError) {
-                    console.error('Resim yükleme hatası:', uploadError);
-                    throw uploadError;
-                }
-
-
-
-                // Public URL'yi al
-                const { data: { publicUrl } } = supabase
-                    .storage
-                    .from('product-images')
-                    .getPublicUrl(fileName);
-
-
-                imageUrl = publicUrl;
-            } catch (error) {
-                console.error('Resim yükleme işlemi hatası:', error);
-                throw error;
-            }
-        }
-
+        // Ürün bilgilerini hazırla
         const productData = {
             name,
             price: parseFloat(price),
             description: description || null,
             category_id,
-            images: imageUrl ? [imageUrl] : [],
+            images: Array.isArray(images) ? images : [],
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
-
 
         const { data, error, status } = await supabase
             .from('products')
@@ -282,7 +222,6 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
             });
             return;
         }
-
 
         res.status(201).json({
             success: true,
