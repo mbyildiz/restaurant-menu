@@ -56,10 +56,14 @@ export const createDynamicTheme = (themeSettings: ThemeSettings) => {
             MuiCard: {
                 styleOverrides: {
                     root: {
-                        backgroundColor: themeSettings.product_card?.backgroundColor || '#ffffff',
-                        borderRadius: themeSettings.product_card?.borderRadius || '8px',
-                        padding: themeSettings.product_card?.padding || '16px',
-                        boxShadow: `${themeSettings.product_card?.shadowSize || '0 2px 8px'} ${themeSettings.product_card?.shadowColor || 'rgba(0, 0, 0, 0.1)'}`,
+                        //backgroundColor: themeSettings.product_card?.backgroundColor || '#ffffff',
+                        borderRadius: themeSettings?.product_card?.borderRadius || '8px',
+                        padding: themeSettings?.product_card?.padding || '16px',
+                        boxShadow: `${themeSettings?.product_card?.shadowSize || '0 2px 8px'} ${themeSettings.product_card?.shadowColor || 'rgba(0, 0, 0, 0.1)'}`,
+                        border: `${themeSettings?.product_card?.shadowSize || '1px solid'}  ${themeSettings?.product_card?.shadowColor || '#6E6E6EFF'}`,
+                        backgroundColor: themeSettings?.product_card?.backgroundColor || '#FFFFFF',
+
+
                     },
                 },
             },

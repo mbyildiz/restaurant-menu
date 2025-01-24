@@ -19,8 +19,12 @@ import FacebookIcon from '@mui/icons-material/Facebook';
 import InstagramIcon from '@mui/icons-material/Instagram';
 import TwitterIcon from '@mui/icons-material/Twitter';
 import { visitors, company, categories as categoryApi, products as productApi } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 const Home = () => {
+    // Theme context'ten ayarları alın
+    const { themeSettings } = useTheme();
+
     const [products, setProducts] = useState<Product[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -387,18 +391,20 @@ const Home = () => {
 
                     <Grid
                         container
-                        spacing={2}
-                        sx={{ mt: 1 }}
+                        spacing={themeSettings?.product_card?.spacing || 2}
+                        sx={{
+                            mt: 1,
+                            px: themeSettings?.layout?.containerPadding || 2
+                        }}
                     >
                         {filteredProducts.map((product) => (
-                            <Grid item xs={12} sm={6} md={4} lg={3} key={product.id}>
+
+                            <Grid item xs={themeSettings?.product_grid?.columns?.xs || 12} sm={themeSettings?.product_grid?.columns?.sm || 6} md={themeSettings?.product_grid?.columns?.md || 4} lg={themeSettings?.product_grid?.columns?.lg || 3} key={product.id}>
                                 <Card
                                     sx={{
                                         height: '100%',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        border: '1px solid #e0e0e0',
-                                        borderRadius: 2,
                                         transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                                         '&:hover': {
                                             transform: 'translateY(-4px)',
@@ -414,17 +420,21 @@ const Home = () => {
                                             navButtonsAlwaysVisible={product.images.length > 1}
                                             navButtonsProps={{
                                                 style: {
-                                                    backgroundColor: 'rgba(0,0,0,0.3)',
-                                                    borderRadius: 0,
+                                                    backgroundColor: themeSettings?.product_card?.shadowColor || 'rgba(0,0,0,0.4)',
+                                                    borderRadius: 15,
+                                                    opacity: 0.4,
+                                                    padding: themeSettings?.product_grid?.gap || 10,
+                                                    margin: themeSettings?.product_grid?.containerPadding || 10,
+                                                    color: 'white',
                                                 }
                                             }}
-                                            sx={{ minHeight: 200 }}
+                                            sx={{ minHeight: 250 }}
                                         >
                                             {product.images.map((image, index) => (
                                                 <CardMedia
                                                     key={index}
                                                     component="img"
-                                                    height="200"
+                                                    height={themeSettings?.product_card?.imageHeight || 250}
                                                     image={image}
                                                     alt={product.name}
                                                     sx={{
@@ -482,6 +492,7 @@ const Home = () => {
                     </Grid>
                 </Box>
             </Container>
+
 
             {/* Footer with company info */}
             {companyInfo && (companyInfo.company_name || companyInfo.company_address || companyInfo.phone_number || companyInfo.social_media) && (
