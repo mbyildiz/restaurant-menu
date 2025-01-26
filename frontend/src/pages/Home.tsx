@@ -447,7 +447,7 @@ const Home = () => {
                                         <CardMedia
                                             component="img"
                                             height="200"
-                                            image="https://via.placeholder.com/300"
+                                            image="https://placehold.co/200x200?text=Resim+Bulunamadı"
                                             alt={product.name}
                                         />
                                     )}
@@ -457,8 +457,8 @@ const Home = () => {
                                             variant="h6"
                                             component="h2"
                                             sx={{
-                                                color: '#2e7d32',
-                                                fontSize: '1.1rem',
+                                                color: themeSettings?.colors?.text || '#000000',
+                                                fontSize: themeSettings?.typography?.sizes.h2 || '2rem',
                                                 fontWeight: 600,
                                                 mb: 1
                                             }}
@@ -470,7 +470,7 @@ const Home = () => {
                                             color="text.secondary"
                                             sx={{
                                                 mb: 1,
-                                                color: '#666'
+                                                color: themeSettings?.colors?.secondary || '#666'
                                             }}
                                         >
                                             {product.description}
@@ -480,7 +480,8 @@ const Home = () => {
                                             sx={{
                                                 fontWeight: 'bold',
                                                 mt: 'auto',
-                                                color: '#2e7d32'
+                                                color: themeSettings?.colors?.text || '#000000',
+                                                fontSize: themeSettings?.typography?.sizes.h6 || '1rem',
                                             }}
                                         >
                                             {product.price} ₺

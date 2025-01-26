@@ -78,7 +78,7 @@ export const ProductCardSettings: React.FC<ProductCardSettingsProps> = ({
                 <Grid item xs={12} sm={6}>
                     <TextField
                         fullWidth
-                        label="Öğe Aralığı"
+                        label="Ürün Aralığı"
                         value={settings.product_card.spacing}
                         onChange={(e) => handleChange('spacing', e.target.value)}
                     />
