@@ -46,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             sx={{
                                 flexGrow: 1,
                                 textDecoration: 'none',
-                                color: 'inherit',
+                                color: 'secondary',
                                 fontSize: { xs: '1.1rem', sm: '1.25rem' }
                             }}
                         >
@@ -55,19 +55,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {authState.isAuthenticated ? (
                             <>
                                 <Button
-                                    color="inherit"
+                                    color="secondary"
                                     component={RouterLink}
                                     to="/admin"
                                     sx={{ mr: 2 }}
                                 >
                                     Yönetim
                                 </Button>
-                                <Button color="inherit" onClick={logout}>
+                                <Button color="secondary" onClick={logout}>
                                     Çıkış Yap
                                 </Button>
                             </>
                         ) : (
-                            <Button color="inherit" component={RouterLink} to="/login">
+                            <Button color="secondary" component={RouterLink} to="/login">
                                 Giriş Yap
                             </Button>
                         )}
