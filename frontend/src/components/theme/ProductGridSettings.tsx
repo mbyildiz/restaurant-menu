@@ -44,7 +44,7 @@ export const ProductGridSettings: React.FC<ProductGridSettingsProps> = ({
                         value={settings.product_grid.columns.xs}
                         onChange={(_, value) => handleColumnChange('xs', value as number)}
                         min={1}
-                        max={4}
+                        max={12}
                         step={1}
                         marks
                         valueLabelDisplay="auto"
@@ -56,7 +56,7 @@ export const ProductGridSettings: React.FC<ProductGridSettingsProps> = ({
                         value={settings.product_grid.columns.sm}
                         onChange={(_, value) => handleColumnChange('sm', value as number)}
                         min={1}
-                        max={4}
+                        max={12}
                         step={1}
                         marks
                         valueLabelDisplay="auto"
@@ -68,7 +68,7 @@ export const ProductGridSettings: React.FC<ProductGridSettingsProps> = ({
                         value={settings.product_grid.columns.md}
                         onChange={(_, value) => handleColumnChange('md', value as number)}
                         min={1}
-                        max={6}
+                        max={12}
                         step={1}
                         marks
                         valueLabelDisplay="auto"
@@ -80,7 +80,7 @@ export const ProductGridSettings: React.FC<ProductGridSettingsProps> = ({
                         value={settings.product_grid.columns.lg}
                         onChange={(_, value) => handleColumnChange('lg', value as number)}
                         min={1}
-                        max={6}
+                        max={12}
                         step={1}
                         marks
                         valueLabelDisplay="auto"
