@@ -57,6 +57,7 @@ export const ProductCardSettings: React.FC<ProductCardSettingsProps> = ({
                         label="Gölge Rengi"
                         value={settings.product_card.shadowColor}
                         onChange={(e) => handleChange('shadowColor', e.target.value)}
+                        type="color"
                     />
                 </Grid>
                 <Grid item xs={12} sm={6}>
